@@ -2,13 +2,15 @@
   let currentConfig = null;
   let privacyEnabled = false;
 
+  let statusTimer = null;
   const showStatus = (msg, type = "info") => {
     const el = document.getElementById("statusAlert");
     if (!el) return;
-    el.className = `alert alert-${type} mb-4 py-2 small rounded-3`;
+    el.className = `alert alert-${type} py-2 px-3 small rounded-3 floating-status-toast`;
     el.innerHTML = `<i class="fa-solid fa-circle-info me-2"></i>${msg}`;
     el.classList.remove("d-none");
-    setTimeout(() => el.classList.add("d-none"), 5000);
+    if (statusTimer) clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => el.classList.add("d-none"), 4000);
   };
 
   const escapeHtml = (str) =>

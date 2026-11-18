@@ -297,3 +297,16 @@ body {
   color: var(--text-main);
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
 }
+
+.floating-status-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1080;
+  max-width: 420px;
+  margin: 0 !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
