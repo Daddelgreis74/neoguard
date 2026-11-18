@@ -104,15 +104,18 @@ class RoomGuardWorker:
         guard_cfg = raw_cfg["guard"]
         persons = raw_cfg["persons"]
 
+        self.camera.set_ai_overlay_enabled(bool(guard_cfg.get("ai_overlay", True)))
         track_speed = float(guard_cfg.get("tracking_speed", 1.4))
         detections = self.face.detect_and_embed(frame_bgr)
         if not detections:
+            body_bbox = None
             # Fallback: track walking/sideways/back-turned person via motion-gated HOG body detector
             if guard_cfg.get("auto_tracking", True):
                 person_bbox, cur_gray = self.face.detect_largest_person_bbox(
                     frame_bgr, prev_gray=self._prev_motion_gray
                 )
                 self._prev_motion_gray = cur_gray
+                body_bbox = person_bbox
                 if person_bbox is not None:
                     self._last_person_seen_ts = datetime.now(timezone.utc).timestamp()
                     moved = self.camera.track_face_in_frame(
@@ -122,6 +125,7 @@ class RoomGuardWorker:
                         self._at_home_preset = False
                         # Reset motion baseline after motor movement so camera pan doesn't self-trigger
                         self._prev_motion_gray = None
+            self.camera.update_ai_overlay(frame_bgr.shape, [], body_bbox=body_bbox)
             return []
 
         self._prev_motion_gray = None
@@ -143,6 +147,7 @@ class RoomGuardWorker:
         now_iso = datetime.now(timezone.utc).isoformat()
 
         outcomes: List[Dict[str, Any]] = []
+        overlay_faces: List[Dict[str, Any]] = []
         annotated = frame_bgr.copy()
 
         for det in detections:
@@ -212,6 +217,22 @@ class RoomGuardWorker:
                 else:
                     self.store.update_person(p_id, {"last_seen": now_iso})
 
+                overlay_faces.append(
+                    {
+                        "bbox": det["bbox"],
+                        "landmarks": det.get("landmarks", []),
+                        "recognized": True,
+                        "label": f"{p_name} ({int(sim_score * 100)}%)",
+                    }
+                )
+                overlay_faces.append(
+                    {
+                        "bbox": det["bbox"],
+                        "landmarks": det.get("landmarks", []),
+                        "recognized": False,
+                        "label": f"Unbekannt ({int(sim_score * 100)}%)",
+                    }
+                )
                 outcomes.append(
                     {
                         "recognized": True,
@@ -271,6 +292,22 @@ class RoomGuardWorker:
                         event_type="unknown_person",
                     )
 
+                overlay_faces.append(
+                    {
+                        "bbox": det["bbox"],
+                        "landmarks": det.get("landmarks", []),
+                        "recognized": True,
+                        "label": f"{p_name} ({int(sim_score * 100)}%)",
+                    }
+                )
+                overlay_faces.append(
+                    {
+                        "bbox": det["bbox"],
+                        "landmarks": det.get("landmarks", []),
+                        "recognized": False,
+                        "label": f"Unbekannt ({int(sim_score * 100)}%)",
+                    }
+                )
                 outcomes.append(
                     {
                         "recognized": False,
@@ -284,6 +321,7 @@ class RoomGuardWorker:
                     }
                 )
 
+        self.camera.update_ai_overlay(frame_bgr.shape, overlay_faces, body_bbox=None)
         return outcomes
 
     async def _loop(self) -> None:

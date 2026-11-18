@@ -89,6 +89,7 @@ class GuardSettingsUpdate(BaseModel):
     active_hours_end: Optional[str] = None
     auto_privacy_after_greeting: Optional[bool] = None
     auto_tracking: Optional[bool] = None
+    ai_overlay: Optional[bool] = None
     tracking_speed: Optional[float] = None
     tracking_return_home: Optional[bool] = None
     tracking_home_delay_sec: Optional[int] = None
@@ -173,6 +174,8 @@ def update_camera_config(payload: CameraSettingsUpdate) -> Dict[str, Any]:
 def update_guard_config(payload: GuardSettingsUpdate) -> Dict[str, Any]:
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     updated = store.update_guard(updates)
+    if "ai_overlay" in updated:
+        camera_service.set_ai_overlay_enabled(bool(updated["ai_overlay"]))
     return {"ok": True, "guard": updated}
 
 

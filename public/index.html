@@ -62,7 +62,10 @@
               <h5 class="fw-bold mb-0"><i class="fa-solid fa-video text-info me-2"></i>Tapo C200 Live-Ansicht</h5>
               <small class="text-secondary" id="cameraIpSubtitle">IP: 192.168.178.50 · RTSP Port 554 / ONVIF 2020</small>
             </div>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 flex-wrap">
+              <button class="btn btn-glass btn-sm" id="btnAiOverlayToggle" title="KI-Erkennungs-Raster auf dem Live-Bild ein/ausschalten">
+                <i class="fa-solid fa-border-all me-1 text-info"></i>KI-Raster: <span id="aiOverlayState">AN</span>
+              </button>
               <button class="btn btn-glass btn-sm" id="btnAutoTrackToggle" title="KI-Personen-Verfolgung ein/ausschalten">
                 <i class="fa-solid fa-crosshairs me-1 text-info"></i>Tracking: <span id="autoTrackState">AN</span>
               </button>

@@ -37,6 +37,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "active_hours_end": "23:00",
         "auto_privacy_after_greeting": False,
         "auto_tracking": True,
+        "ai_overlay": True,
         "tracking_speed": 1.4,
         "tracking_return_home": True,
         "tracking_home_delay_sec": 20,

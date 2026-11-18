@@ -103,6 +103,12 @@
         trackSpan.textContent = autoTrack ? "AN" : "AUS";
         trackSpan.className = autoTrack ? "text-success fw-bold" : "text-secondary";
       }
+      const aiOverlay = guard.ai_overlay !== false;
+      const overlaySpan = document.getElementById("aiOverlayState");
+      if (overlaySpan) {
+        overlaySpan.textContent = aiOverlay ? "AN" : "AUS";
+        overlaySpan.className = aiOverlay ? "text-success fw-bold" : "text-secondary";
+      }
       const speedVal = guard.tracking_speed ?? 1.4;
       const slider = document.getElementById("trackingSpeedSlider");
       const speedBadge = document.getElementById("trackingSpeedVal");
@@ -291,6 +297,24 @@
         showStatus(`Speichern fehlgeschlagen: ${data.error}`, "warning");
       }
     });
+  });
+
+  // AI Overlay Grid Quick Toggle
+  document.getElementById("btnAiOverlayToggle")?.addEventListener("click", async () => {
+    const currentlyOn = currentConfig?.guard?.ai_overlay !== false;
+    const nextVal = !currentlyOn;
+    const res = await fetch("/api/config/guard", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ai_overlay: nextVal }),
+    });
+    if (res.ok) {
+      showStatus(
+        nextVal ? "KI-Gesichts-Raster im Live-Bild aktiviert." : "KI-Gesichts-Raster ausgeblendet.",
+        "info"
+      );
+      loadConfig();
+    }
   });
 
   // Auto-Tracking Quick Toggle

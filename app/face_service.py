@@ -98,9 +98,17 @@ class LocalFaceService:
                     norm_val = float(np.linalg.norm(feat_norm))
                     if norm_val > 1e-8:
                         feat_norm = feat_norm / norm_val
+                    landmarks = [
+                        [int(face[4]), int(face[5])],
+                        [int(face[6]), int(face[7])],
+                        [int(face[8]), int(face[9])],
+                        [int(face[10]), int(face[11])],
+                        [int(face[12]), int(face[13])],
+                    ]
                     results.append(
                         {
                             "bbox": [max(0, bx), max(0, by), max(1, bw), max(1, bh)],
+                            "landmarks": landmarks,
                             "score": round(score, 3),
                             "embedding": [round(float(x), 6) for x in feat_norm.tolist()],
                         }

@@ -34,6 +34,9 @@ class TapoCameraService:
         self._reader_cfg: Optional[Dict[str, Any]] = None
         self._active_mjpeg_clients: int = 0
         self._last_track_ts: float = 0.0
+        self._ai_overlay_enabled: bool = True
+        self._ai_overlay_lock = threading.Lock()
+        self._ai_overlay_data: Dict[str, Any] = {"ts": 0.0, "shape": None, "faces": [], "body": None}
 
     @staticmethod
     def _cfg_signature(camera_cfg: Dict[str, Any]) -> str:
@@ -243,6 +246,102 @@ class TapoCameraService:
         cv2.putText(img, f"Tapo Room Guard  |  {ts}", (40, 325), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (130, 145, 165), 1, cv2.LINE_AA)
         return img
 
+    def set_ai_overlay_enabled(self, enabled: bool) -> None:
+        self._ai_overlay_enabled = bool(enabled)
+
+    def update_ai_overlay(
+        self,
+        frame_shape: tuple,
+        faces: list,
+        body_bbox: Optional[list] = None,
+    ) -> None:
+        with self._ai_overlay_lock:
+            self._ai_overlay_data = {
+                "ts": time.time(),
+                "shape": (frame_shape[0], frame_shape[1]),
+                "faces": faces,
+                "body": body_bbox,
+            }
+
+    def _draw_ai_overlay(self, frame: np.ndarray) -> np.ndarray:
+        """Draw live YuNet face mesh, recognition boxes, HOG body box, and tracking deadzone grid."""
+        if not self._ai_overlay_enabled:
+            return frame
+
+        out = frame.copy()
+        fh, fw = out.shape[:2]
+
+        # 1. Subtle center tracking deadzone grid (±10% X, ±14% Y)
+        dz_x1, dz_x2 = int(fw * 0.40), int(fw * 0.60)
+        dz_y1, dz_y2 = int(fh * 0.36), int(fh * 0.64)
+        grid_color = (180, 140, 40)
+        corner_len = 14
+        for cx, cy, dx, dy in [
+            (dz_x1, dz_y1, 1, 1),
+            (dz_x2, dz_y1, -1, 1),
+            (dz_x1, dz_y2, 1, -1),
+            (dz_x2, dz_y2, -1, -1),
+        ]:
+            cv2.line(out, (cx, cy), (cx + dx * corner_len, cy), grid_color, 1, cv2.LINE_AA)
+            cv2.line(out, (cx, cy), (cx, cy + dy * corner_len), grid_color, 1, cv2.LINE_AA)
+        cv2.line(out, (fw // 2 - 8, fh // 2), (fw // 2 + 8, fh // 2), grid_color, 1, cv2.LINE_AA)
+        cv2.line(out, (fw // 2, fh // 2 - 8), (fw // 2, fh // 2 + 8), grid_color, 1, cv2.LINE_AA)
+
+        with self._ai_overlay_lock:
+            data = dict(self._ai_overlay_data)
+
+        if (time.time() - data.get("ts", 0.0)) > 2.0 or not data.get("shape"):
+            return out
+
+        src_h, src_w = data["shape"]
+        sx = fw / float(src_w)
+        sy = fh / float(src_h)
+
+        # 2. HOG body box (if motion-gated fallback active)
+        body = data.get("body")
+        if body and len(body) >= 4:
+            bx, by, bw, bh = int(body[0] * sx), int(body[1] * sy), int(body[2] * sx), int(body[3] * sy)
+            cv2.rectangle(out, (bx, by), (bx + bw, by + bh), (248, 189, 56), 1, cv2.LINE_AA)
+            cv2.putText(out, "Person (Bewegung)", (bx, max(18, by - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (248, 189, 56), 1, cv2.LINE_AA)
+
+        # 3. YuNet faces + 5-point facial landmark mesh + recognition label
+        for face in data.get("faces", []):
+            bbox = face.get("bbox", [])
+            if len(bbox) < 4:
+                continue
+            bx, by, bw, bh = int(bbox[0] * sx), int(bbox[1] * sy), int(bbox[2] * sx), int(bbox[3] * sy)
+            recognized = bool(face.get("recognized"))
+            color = (153, 211, 52) if recognized else (248, 189, 56)  # Emerald green or Sky cyan
+
+            # Corner brackets
+            cl = max(10, min(bw, bh) // 4)
+            for cx, cy, dx, dy in [
+                (bx, by, 1, 1),
+                (bx + bw, by, -1, 1),
+                (bx, by + bh, 1, -1),
+                (bx + bw, by + bh, -1, -1),
+            ]:
+                cv2.line(out, (cx, cy), (cx + dx * cl, cy), color, 2, cv2.LINE_AA)
+                cv2.line(out, (cx, cy), (cx, cy + dy * cl), color, 2, cv2.LINE_AA)
+            cv2.rectangle(out, (bx, by), (bx + bw, by + bh), color, 1, cv2.LINE_AA)
+
+            # 5-point YuNet landmark mesh (right eye, left eye, nose, mouth R, mouth L)
+            lms = face.get("landmarks", [])
+            if len(lms) == 5:
+                pts = [(int(p[0] * sx), int(p[1] * sy)) for p in lms]
+                # Connect eyes -> nose -> mouth corners -> eyes
+                mesh_pairs = [(0, 1), (0, 2), (1, 2), (2, 3), (2, 4), (3, 4), (0, 3), (1, 4)]
+                for i1, i2 in mesh_pairs:
+                    cv2.line(out, pts[i1], pts[i2], color, 1, cv2.LINE_AA)
+                for px, py in pts:
+                    cv2.circle(out, (px, py), 3, (255, 255, 255), -1, cv2.LINE_AA)
+                    cv2.circle(out, (px, py), 3, color, 1, cv2.LINE_AA)
+
+            label = face.get("label", "Unbekannt")
+            cv2.putText(out, label, (bx, max(20, by - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.58, color, 2, cv2.LINE_AA)
+
+        return out
+
     def mjpeg_generator(self, camera_cfg_getter) -> Generator[bytes, None, None]:
         """Yield smooth ~15 FPS MJPEG frames for live browser preview."""
         last_sent_ts = 0.0
@@ -263,6 +362,7 @@ class TapoCameraService:
                 last_sent_ts = time.time()
 
             if frame is not None:
+                frame = self._draw_ai_overlay(frame)
                 ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
                 if ok:
                     yield (
