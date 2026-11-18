@@ -507,6 +507,142 @@
     }
   });
 
+  // -------------------- Photo Crop Editor --------------------
+  let cropTargetPersonId = null;
+  let cropImage = null;
+  let cropScale = 1.0;
+  let cropOffsetX = 0;
+  let cropOffsetY = 0;
+  let cropRotation = 0;
+  let isCropDragging = false;
+  let cropDragStartX = 0;
+  let cropDragStartY = 0;
+
+  const cropCanvas = document.getElementById("cropCanvas");
+  const cropCtx = cropCanvas?.getContext("2d");
+  const cropZoomSlider = document.getElementById("cropZoomSlider");
+
+  const renderCropCanvas = () => {
+    if (!cropCtx || !cropCanvas || !cropImage) return;
+    const cw = cropCanvas.width;
+    const ch = cropCanvas.height;
+    cropCtx.clearRect(0, 0, cw, ch);
+    cropCtx.fillStyle = "#050811";
+    cropCtx.fillRect(0, 0, cw, ch);
+
+    cropCtx.save();
+    cropCtx.translate(cw / 2 + cropOffsetX, ch / 2 + cropOffsetY);
+    cropCtx.rotate((cropRotation * Math.PI) / 180);
+    cropCtx.scale(cropScale, cropScale);
+    cropCtx.drawImage(cropImage, -cropImage.width / 2, -cropImage.height / 2);
+    cropCtx.restore();
+  };
+
+  const openCropEditorWithSrc = (personId, imgSrc) => {
+    cropTargetPersonId = personId;
+    cropRotation = 0;
+    cropOffsetX = 0;
+    cropOffsetY = 0;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      cropImage = img;
+      // Fit image to 320x320 initially
+      const baseScale = Math.max(320 / img.width, 320 / img.height);
+      cropScale = baseScale;
+      if (cropZoomSlider) {
+        cropZoomSlider.min = (baseScale * 0.4).toFixed(2);
+        cropZoomSlider.max = (baseScale * 4.5).toFixed(2);
+        cropZoomSlider.step = (baseScale * 0.05).toFixed(3);
+        cropZoomSlider.value = baseScale;
+      }
+      renderCropCanvas();
+      new bootstrap.Modal(document.getElementById("cropPhotoModal")).show();
+    };
+    img.src = imgSrc;
+  };
+
+  cropZoomSlider?.addEventListener("input", (e) => {
+    cropScale = parseFloat(e.target.value) || 1.0;
+    renderCropCanvas();
+  });
+
+  document.getElementById("btnCropRotate")?.addEventListener("click", () => {
+    cropRotation = (cropRotation + 90) % 360;
+    renderCropCanvas();
+  });
+
+  cropCanvas?.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      if (!cropZoomSlider) return;
+      const min = parseFloat(cropZoomSlider.min);
+      const max = parseFloat(cropZoomSlider.max);
+      const step = (max - min) * 0.04;
+      cropScale = Math.max(min, Math.min(max, cropScale + (e.deltaY < 0 ? step : -step)));
+      cropZoomSlider.value = cropScale;
+      renderCropCanvas();
+    },
+    { passive: false }
+  );
+
+  cropCanvas?.addEventListener("pointerdown", (e) => {
+    isCropDragging = true;
+    cropDragStartX = e.clientX;
+    cropDragStartY = e.clientY;
+    cropCanvas.setPointerCapture(e.pointerId);
+  });
+  cropCanvas?.addEventListener("pointermove", (e) => {
+    if (!isCropDragging) return;
+    cropOffsetX += e.clientX - cropDragStartX;
+    cropOffsetY += e.clientY - cropDragStartY;
+    cropDragStartX = e.clientX;
+    cropDragStartY = e.clientY;
+    renderCropCanvas();
+  });
+  const stopCropDrag = () => {
+    isCropDragging = false;
+  };
+  cropCanvas?.addEventListener("pointerup", stopCropDrag);
+  cropCanvas?.addEventListener("pointercancel", stopCropDrag);
+
+  document.getElementById("btnCropSave")?.addEventListener("click", async () => {
+    if (!cropCanvas || !cropTargetPersonId) return;
+    const btn = document.getElementById("btnCropSave");
+    btn.disabled = true;
+    try {
+      // Export crisp 400x400 portrait JPEG
+      const outCanvas = document.createElement("canvas");
+      outCanvas.width = 400;
+      outCanvas.height = 400;
+      const outCtx = outCanvas.getContext("2d");
+      outCtx.drawImage(cropCanvas, 0, 0, 400, 400);
+
+      const blob = await new Promise((resolve) => outCanvas.toBlob(resolve, "image/jpeg", 0.92));
+      const formData = new FormData();
+      formData.append("file", blob, "cropped_face.jpg");
+
+      const res = await fetch(`/api/persons/${encodeURIComponent(cropTargetPersonId)}/photo`, {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        bootstrap.Modal.getInstance(document.getElementById("cropPhotoModal"))?.hide();
+        if (document.getElementById("editPersonId")?.value === cropTargetPersonId) {
+          renderEditPersonPhotos(data.person);
+        }
+        showStatus("Zugeschnittenes Referenzfoto gespeichert & Embedding aktualisiert!", "success");
+        loadConfig();
+      } else {
+        showStatus("Fehler beim Speichern des zugeschnittenen Fotos.", "danger");
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   // Render photos inside Edit Person Modal
   const renderEditPersonPhotos = (person) => {
     const box = document.getElementById("editPersonPhotos");
@@ -548,33 +684,17 @@
     }
   });
 
-  document.getElementById("btnEditCapturePhoto")?.addEventListener("click", async () => {
+  document.getElementById("btnEditCapturePhoto")?.addEventListener("click", () => {
     const pid = document.getElementById("editPersonId").value;
     if (!pid) return;
-    const res = await fetch(`/api/persons/${encodeURIComponent(pid)}/capture`, { method: "POST" });
-    if (res.ok) {
-      const data = await res.json();
-      renderEditPersonPhotos(data.person);
-      showStatus("Neues Foto von Tapo C200 aufgenommen!", "success");
-      loadConfig();
-    }
+    openCropEditorWithSrc(pid, `/api/camera/snapshot.jpg?t=${Date.now()}`);
   });
 
-  document.getElementById("inputEditUploadPhoto")?.addEventListener("change", async (e) => {
+  document.getElementById("inputEditUploadPhoto")?.addEventListener("change", (e) => {
     const pid = document.getElementById("editPersonId").value;
     if (!pid || !e.target.files.length) return;
-    const formData = new FormData();
-    formData.append("file", e.target.files[0]);
-    const res = await fetch(`/api/persons/${encodeURIComponent(pid)}/photo`, {
-      method: "POST",
-      body: formData,
-    });
-    if (res.ok) {
-      const data = await res.json();
-      renderEditPersonPhotos(data.person);
-      showStatus("Neues Foto hochgeladen!", "success");
-      loadConfig();
-    }
+    const fileUrl = URL.createObjectURL(e.target.files[0]);
+    openCropEditorWithSrc(pid, fileUrl);
     e.target.value = "";
   });
 
@@ -632,30 +752,17 @@
     const capBtn = e.target.closest("[data-capture-person]");
     if (capBtn) {
       const id = capBtn.getAttribute("data-capture-person");
-      const res = await fetch(`/api/persons/${encodeURIComponent(id)}/capture`, { method: "POST" });
-      if (res.ok) {
-        showStatus("Kamera-Snapshot aufgenommen und Gesichts-Embedding berechnet!", "success");
-        loadConfig();
-      }
+      openCropEditorWithSrc(id, `/api/camera/snapshot.jpg?t=${Date.now()}`);
     }
   });
 
-  document.getElementById("personsList")?.addEventListener("change", async (e) => {
+  document.getElementById("personsList")?.addEventListener("change", (e) => {
     const fileInput = e.target.closest("[data-upload-person]");
     if (fileInput && fileInput.files.length > 0) {
       const id = fileInput.getAttribute("data-upload-person");
-      const formData = new FormData();
-      formData.append("file", fileInput.files[0]);
-      const res = await fetch(`/api/persons/${encodeURIComponent(id)}/photo`, {
-        method: "POST",
-        body: formData,
-      });
-      if (res.ok) {
-        showStatus("Referenzfoto hochgeladen & lokales Gesichts-Embedding gespeichert!", "success");
-        loadConfig();
-      } else {
-        showStatus("Fehler beim Hochladen des Fotos.", "danger");
-      }
+      const fileUrl = URL.createObjectURL(fileInput.files[0]);
+      openCropEditorWithSrc(id, fileUrl);
+      fileInput.value = "";
     }
   });
 
