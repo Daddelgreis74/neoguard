@@ -227,14 +227,6 @@ class RoomGuardWorker:
                         "label": f"{p_name} ({int(sim_score * 100)}%)",
                     }
                 )
-                overlay_faces.append(
-                    {
-                        "bbox": det["bbox"],
-                        "landmarks": det.get("landmarks", []),
-                        "recognized": False,
-                        "label": f"Unbekannt ({int(sim_score * 100)}%)",
-                    }
-                )
                 outcomes.append(
                     {
                         "recognized": True,
@@ -295,14 +287,6 @@ class RoomGuardWorker:
                         event_type="unknown_person",
                     )
 
-                overlay_faces.append(
-                    {
-                        "bbox": det["bbox"],
-                        "landmarks": det.get("landmarks", []),
-                        "recognized": True,
-                        "label": f"{p_name} ({int(sim_score * 100)}%)",
-                    }
-                )
                 overlay_faces.append(
                     {
                         "bbox": det["bbox"],

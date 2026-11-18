@@ -277,13 +277,18 @@ def delete_person(person_id: str) -> Dict[str, Any]:
     return {"ok": True}
 
 
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB limit for face photo uploads
+
+
 @app.post("/api/persons/{person_id}/photo")
 async def upload_person_photo(person_id: str, file: UploadFile = File(...)) -> Dict[str, Any]:
     person = store.get_person(person_id)
     if not person:
         raise HTTPException(status_code=404, detail="Person nicht gefunden.")
 
-    raw_bytes = await file.read()
+    raw_bytes = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(raw_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Bilddatei zu groß (max. 10 MB).")
     np_arr = np.frombuffer(raw_bytes, np.uint8)
     img_bgr = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
     if img_bgr is None or img_bgr.size == 0:
@@ -307,7 +312,10 @@ def capture_person_photo_from_camera(person_id: str) -> Dict[str, Any]:
     raw_cfg = store.get_raw_config()
     frame = camera_service.capture_frame(raw_cfg["camera"], stream="stream1")
     if frame is None:
-        frame = camera_service.get_snapshot_or_placeholder(raw_cfg["camera"])
+        raise HTTPException(
+            status_code=503,
+            detail="Kein Live-Kamerabild verfügbar (Kamera offline oder Privacy-Mode aktiv).",
+        )
 
     embedding, bbox = face_service.compute_embedding_for_enrollment(frame)
     filename = f"{person_id}_{uuid.uuid4().hex[:6]}.jpg"

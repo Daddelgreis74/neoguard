@@ -9,6 +9,7 @@ import time
 import urllib.parse
 from pathlib import Path
 from typing import Any, Dict, Generator, Optional
+from xml.sax.saxutils import escape as xml_escape
 
 import cv2
 import httpx
@@ -395,7 +396,7 @@ class TapoCameraService:
   <s:Header>
     <wsse:Security s:mustUnderstand="1">
       <wsse:UsernameToken>
-        <wsse:Username>{user}</wsse:Username>
+        <wsse:Username>{xml_escape(user)}</wsse:Username>
         <wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{pass_digest}</wsse:Password>
         <wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce_b64}</wsse:Nonce>
         <wsu:Created>{created}</wsu:Created>
@@ -562,13 +563,14 @@ class TapoCameraService:
 
     def goto_preset(self, camera_cfg: Dict[str, Any], preset_id: str) -> Dict[str, Any]:
         """Move camera to a saved PTZ preset via ONVIF Port 2020."""
+        safe_preset = xml_escape(str(preset_id))
         try:
             resp = self._onvif_request(
                 camera_cfg,
                 "/onvif/ptz_service",
                 f"""<tptz:GotoPreset>
   <tptz:ProfileToken>profile_1</tptz:ProfileToken>
-  <tptz:PresetToken>{preset_id}</tptz:PresetToken>
+  <tptz:PresetToken>{safe_preset}</tptz:PresetToken>
 </tptz:GotoPreset>""",
             )
             if resp.status_code == 200 and "Fault" not in resp.text:
@@ -587,8 +589,8 @@ class TapoCameraService:
                 slot_str = str(slot)
                 xml_body = f"""<tptz:SetPreset>
   <tptz:ProfileToken>profile_1</tptz:ProfileToken>
-  <tptz:PresetName>Pos{slot_str}</tptz:PresetName>
-  <tptz:PresetToken>{slot_str}</tptz:PresetToken>
+  <tptz:PresetName>Pos{xml_escape(slot_str)}</tptz:PresetName>
+  <tptz:PresetToken>{xml_escape(slot_str)}</tptz:PresetToken>
 </tptz:SetPreset>""" if slot == target_num else ""
                 if not xml_body:
                     continue
@@ -601,7 +603,7 @@ class TapoCameraService:
                     "/onvif/ptz_service",
                     f"""<tptz:SetPreset>
   <tptz:ProfileToken>profile_1</tptz:ProfileToken>
-  <tptz:PresetName>Pos{preset_id}</tptz:PresetName>
+  <tptz:PresetName>Pos{xml_escape(str(preset_id))}</tptz:PresetName>
 </tptz:SetPreset>""",
                 )
                 if resp2.status_code == 200 and "SetPresetResponse" in resp2.text:

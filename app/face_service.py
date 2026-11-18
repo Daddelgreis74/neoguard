@@ -1,4 +1,5 @@
 import logging
+import threading
 import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -29,6 +30,7 @@ class LocalFaceService:
         self._detector = None
         self._recognizer = None
         self._haar_cascade = None
+        self._infer_lock = threading.Lock()
         self._hog = cv2.HOGDescriptor()
         self._hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
         self.engine_name = "opencv-fallback"
@@ -86,33 +88,34 @@ class LocalFaceService:
         results: List[Dict[str, Any]] = []
 
         if self._detector is not None and self._recognizer is not None:
-            self._detector.setInputSize((w, h))
-            _, faces = self._detector.detect(image_bgr)
-            if faces is not None:
-                for face in faces:
-                    bx, by, bw, bh = int(face[0]), int(face[1]), int(face[2]), int(face[3])
-                    score = float(face[-1])
-                    aligned = self._recognizer.alignCrop(image_bgr, face)
-                    feat = self._recognizer.feature(aligned)
-                    feat_norm = feat.flatten()
-                    norm_val = float(np.linalg.norm(feat_norm))
-                    if norm_val > 1e-8:
-                        feat_norm = feat_norm / norm_val
-                    landmarks = [
-                        [int(face[4]), int(face[5])],
-                        [int(face[6]), int(face[7])],
-                        [int(face[8]), int(face[9])],
-                        [int(face[10]), int(face[11])],
-                        [int(face[12]), int(face[13])],
-                    ]
-                    results.append(
-                        {
-                            "bbox": [max(0, bx), max(0, by), max(1, bw), max(1, bh)],
-                            "landmarks": landmarks,
-                            "score": round(score, 3),
-                            "embedding": [round(float(x), 6) for x in feat_norm.tolist()],
-                        }
-                    )
+            with self._infer_lock:
+                self._detector.setInputSize((w, h))
+                _, faces = self._detector.detect(image_bgr)
+                if faces is not None:
+                    for face in faces:
+                        bx, by, bw, bh = int(face[0]), int(face[1]), int(face[2]), int(face[3])
+                        score = float(face[-1])
+                        aligned = self._recognizer.alignCrop(image_bgr, face)
+                        feat = self._recognizer.feature(aligned)
+                        feat_norm = feat.flatten()
+                        norm_val = float(np.linalg.norm(feat_norm))
+                        if norm_val > 1e-8:
+                            feat_norm = feat_norm / norm_val
+                        landmarks = [
+                            [int(face[4]), int(face[5])],
+                            [int(face[6]), int(face[7])],
+                            [int(face[8]), int(face[9])],
+                            [int(face[10]), int(face[11])],
+                            [int(face[12]), int(face[13])],
+                        ]
+                        results.append(
+                            {
+                                "bbox": [max(0, bx), max(0, by), max(1, bw), max(1, bh)],
+                                "landmarks": landmarks,
+                                "score": round(score, 3),
+                                "embedding": [round(float(x), 6) for x in feat_norm.tolist()],
+                            }
+                        )
             return results
 
         # Fallback Haar Cascade + 128-D normalized spatial-gradient/intensity descriptor

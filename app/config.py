@@ -283,7 +283,17 @@ class ConfigStore:
                 "snapshot_url": f"/api/snapshots/{snapshot_filename}" if snapshot_filename else None,
             }
             self._events.insert(0, event)
-            self._events = self._events[:200]
+            if len(self._events) > 200:
+                for evicted in self._events[200:]:
+                    snap_url = evicted.get("snapshot_url") or ""
+                    if snap_url.startswith("/api/snapshots/"):
+                        snap_file = self.snapshots_dir / Path(snap_url).name
+                        if snap_file.exists():
+                            try:
+                                snap_file.unlink()
+                            except OSError:
+                                pass
+                self._events = self._events[:200]
             self._save_events_unlocked()
             return event
 

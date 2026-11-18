@@ -4,6 +4,7 @@ import math
 import shutil
 import struct
 import subprocess
+import threading
 import urllib.parse
 import urllib.request
 import wave
@@ -45,6 +46,7 @@ class LocalTTSService:
         self.tts_dir = models_dir / "tts"
         self.tts_dir.mkdir(parents=True, exist_ok=True)
         self.last_wav_path = self.tts_dir / "last_greeting.wav"
+        self._speak_lock = threading.Lock()
 
     def ensure_voice_model(self, voice_name: str = "de_DE-thorsten-medium") -> Tuple[Path, Path]:
         if voice_name not in PIPER_VOICES:
@@ -208,16 +210,17 @@ class LocalTTSService:
         go2rtc_url: str = "http://127.0.0.1:1984",
         volume_percent: int = 100,
     ) -> Dict[str, Any]:
-        """Synthesize text offline and immediately play it on the Tapo C200 speaker."""
-        wav_path = self.synthesize_to_wav(
-            text, voice_name=voice_name, volume_percent=volume_percent
-        )
-        delivery = self.send_wav_to_camera_speaker(
-            wav_path=wav_path,
-            camera_cfg=camera_cfg,
-            go2rtc_url=go2rtc_url,
-        )
-        delivery["text"] = text
-        delivery["voice"] = voice_name
-        delivery["wav_path"] = str(wav_path)
-        return delivery
+        """Synthesize text offline and immediately play it on the Tapo C200 speaker (thread-safe)."""
+        with self._speak_lock:
+            wav_path = self.synthesize_to_wav(
+                text, voice_name=voice_name, volume_percent=volume_percent
+            )
+            delivery = self.send_wav_to_camera_speaker(
+                wav_path=wav_path,
+                camera_cfg=camera_cfg,
+                go2rtc_url=go2rtc_url,
+            )
+            delivery["text"] = text
+            delivery["voice"] = voice_name
+            delivery["wav_path"] = str(wav_path)
+            return delivery
