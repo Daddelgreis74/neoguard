@@ -143,43 +143,27 @@ class LocalTTSService:
     ) -> Dict[str, Any]:
         """
         Stream a WAV file directly to the TP-Link Tapo C200 built-in speaker.
-        Uses go2rtc's Tapo two-way backchannel (pcm_alaw / 8000 Hz / 1ch).
+        Uses go2rtc's Tapo two-way backchannel (pcm_alaw / 8000 Hz / 1ch) on Port 8800.
         """
         host = (camera_cfg.get("host") or "").strip()
         if not host:
             return {"ok": False, "error": "Keine Kamera-IP konfiguriert."}
 
-        ffmpeg_bin = shutil.which("ffmpeg")
-        if ffmpeg_bin:
-            try:
-                cmd = [
-                    ffmpeg_bin,
-                    "-hide_banner",
-                    "-loglevel",
-                    "error",
-                    "-re",
-                    "-i",
-                    str(wav_path.resolve()),
-                    "-c:a",
-                    "pcm_alaw",
-                    "-ar",
-                    "8000",
-                    "-ac",
-                    "1",
-                    "-f",
-                    "rtsp",
-                    "-rtsp_transport",
-                    "tcp",
-                    "rtsp://127.0.0.1:8554/tapo_c200?backchannel=1",
-                ]
-                subprocess.run(cmd, check=True, timeout=20)
-                return {
-                    "ok": True,
-                    "method": "ffmpeg-rtsp-backchannel",
-                    "message": f"Audio via RTSP-Backchannel an Tapo C200 ({host}) ausgegeben.",
-                }
-            except Exception as exc:
-                logger.warning("FFmpeg RTSP backchannel failed: %s", exc)
+        # 1. Push via go2rtc HTTP API to tapo_c200 (tapo://admin:<SHA256_UPPER>@<host>)
+        try:
+            src_arg = f"ffmpeg:{wav_path.resolve()}#audio=pcma"
+            query = urllib.parse.urlencode({"dst": "tapo_c200", "src": src_arg})
+            with httpx.Client(timeout=15.0) as client:
+                resp = client.post(f"{go2rtc_url.rstrip('/')}/api/streams?{query}")
+                if resp.status_code in (200, 201, 204):
+                    return {
+                        "ok": True,
+                        "method": "go2rtc-tapo-backchannel",
+                        "message": f"Audio direkt an Tapo C200 ({host}:8800) Lautsprecher gesendet.",
+                    }
+                logger.warning("go2rtc backchannel status %s: %s", resp.status_code, resp.text)
+        except Exception as exc:
+            logger.warning("go2rtc HTTP API backchannel error: %s", exc)
 
         return {
             "ok": False,

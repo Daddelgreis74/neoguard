@@ -53,14 +53,15 @@ class TapoCameraService:
         return f"rtsp://{host}:{port}/{stream_path}"
 
     def sync_go2rtc_config(self, camera_cfg: Dict[str, Any], go2rtc_url: str = "http://127.0.0.1:1984") -> None:
-        """Write go2rtc.yaml with RTSP + Tapo Two-Way Audio Backchannel streams and reset backoff."""
+        """
+        Write go2rtc.yaml with Tapo Two-Way Audio Backchannel (UPPERCASE SHA256 for V5 / FW 1.5+).
+        """
         self._last_fail_ts = 0.0
         self._last_cfg_sig = self._cfg_signature(camera_cfg)
 
         host = (camera_cfg.get("host") or "").strip()
         rtsp_pass = camera_cfg.get("rtsp_pass") or ""
         cloud_pass = camera_cfg.get("cloud_password") or rtsp_pass
-        rtsp_url = self.build_rtsp_url(camera_cfg, "stream1")
 
         lines = [
             "api:",
@@ -69,13 +70,14 @@ class TapoCameraService:
             "  listen: ':8554'",
             "streams:",
         ]
-        if host and rtsp_url:
-            safe_cloud = urllib.parse.quote(cloud_pass, safe="")
-            tapo_url = f"tapo://admin:{safe_cloud}@{host}"
+        tapo_url = ""
+        if host and cloud_pass:
+            # Tapo C200 V5 / FW 1.4+ / 1.5+ requires UPPERCASE SHA256 of the cloud password in go2rtc
+            sha256_upper = hashlib.sha256(cloud_pass.encode("utf-8")).hexdigest().upper()
+            tapo_url = f"tapo://admin:{sha256_upper}@{host}"
             lines.extend(
                 [
                     "  tapo_c200:",
-                    f"    - {rtsp_url}",
                     f"    - {tapo_url}",
                 ]
             )
@@ -84,14 +86,12 @@ class TapoCameraService:
 
         self.go2rtc_config_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-        if host and rtsp_url:
+        if host and tapo_url:
             try:
-                safe_cloud = urllib.parse.quote(cloud_pass, safe="")
-                tapo_url = f"tapo://admin:{safe_cloud}@{host}"
                 with httpx.Client(timeout=2.5) as client:
                     client.put(
                         f"{go2rtc_url.rstrip('/')}/api/streams",
-                        params={"name": "tapo_c200", "src": [rtsp_url, tapo_url]},
+                        params={"name": "tapo_c200", "src": tapo_url},
                     )
             except Exception:
                 pass
@@ -229,7 +229,7 @@ class TapoCameraService:
             )
 
     def move_ptz(self, camera_cfg: Dict[str, Any], direction: str, step: Optional[int] = None) -> Dict[str, Any]:
-        """Pan/Tilt the Tapo C200 camera via native ONVIF Port 2020 (with pytapo fallback)."""
+        """Pan/Tilt the Tapo C200 camera via native ONVIF Port 2020."""
         deg = float(step or camera_cfg.get("ptz_step") or 15)
         norm_step = round(min(0.5, max(0.02, deg / 180.0)), 3)
         px, py = 0.0, 0.0
@@ -244,7 +244,6 @@ class TapoCameraService:
         else:
             return {"ok": False, "error": f"Unbekannte Richtung: {direction}"}
 
-        # 1. Native ONVIF RelativeMove (Port 2020) — works on all Tapo C200 V1-V5 with Camera Account
         try:
             resp = self._onvif_request(
                 camera_cfg,
