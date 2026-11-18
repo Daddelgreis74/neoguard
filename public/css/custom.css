@@ -185,6 +185,18 @@ body {
   height: 100%;
   object-fit: cover;
   display: block;
+  transform-origin: center center;
+  transition: transform 0.08s ease-out;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.stream-viewport.zoomed {
+  cursor: grab;
+}
+
+.stream-viewport.zoomed:active {
+  cursor: grabbing;
 }
 
 .stream-badge-overlay {

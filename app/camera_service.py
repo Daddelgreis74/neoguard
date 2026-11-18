@@ -263,11 +263,7 @@ class TapoCameraService:
                 last_sent_ts = time.time()
 
             if frame is not None:
-                h, w = frame.shape[:2]
-                if w > 960:
-                    scale = 960.0 / w
-                    frame = cv2.resize(frame, (960, int(h * scale)), interpolation=cv2.INTER_AREA)
-                ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
+                ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
                 if ok:
                     yield (
                         b"--frame\r\n"

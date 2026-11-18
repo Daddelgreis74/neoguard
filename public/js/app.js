@@ -356,6 +356,79 @@
     if (img) img.src = `/api/camera/stream.mjpg?t=${Date.now()}`;
   });
 
+  // Digital Zoom (1.0x - 4.0x) + Mouse Wheel + Drag-to-Pan
+  let zoomLevel = 1.0;
+  let panX = 0;
+  let panY = 0;
+  let isDraggingZoom = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+
+  const streamViewport = document.getElementById("streamViewport");
+  const liveStreamImg = document.getElementById("liveStreamImg");
+  const zoomSlider = document.getElementById("digitalZoomSlider");
+  const zoomBadge = document.getElementById("digitalZoomVal");
+
+  const applyDigitalZoom = (nextZoom, resetPan = false) => {
+    zoomLevel = Math.max(1.0, Math.min(4.0, Math.round(nextZoom * 10) / 10));
+    if (zoomLevel <= 1.0 || resetPan) {
+      panX = 0;
+      panY = 0;
+    }
+    if (streamViewport) {
+      const maxPanX = (streamViewport.clientWidth * (zoomLevel - 1)) / (2 * zoomLevel);
+      const maxPanY = (streamViewport.clientHeight * (zoomLevel - 1)) / (2 * zoomLevel);
+      panX = Math.max(-maxPanX, Math.min(maxPanX, panX));
+      panY = Math.max(-maxPanY, Math.min(maxPanY, panY));
+      streamViewport.classList.toggle("zoomed", zoomLevel > 1.0);
+    }
+    if (liveStreamImg) {
+      liveStreamImg.style.transform = `scale(${zoomLevel}) translate(${panX}px, ${panY}px)`;
+    }
+    if (zoomSlider) zoomSlider.value = zoomLevel;
+    if (zoomBadge) zoomBadge.textContent = `${zoomLevel.toFixed(1)}x`;
+  };
+
+  zoomSlider?.addEventListener("input", (e) => applyDigitalZoom(parseFloat(e.target.value)));
+  document.getElementById("btnZoomMinus")?.addEventListener("click", () => applyDigitalZoom(zoomLevel - 0.3));
+  document.getElementById("btnZoomPlus")?.addEventListener("click", () => applyDigitalZoom(zoomLevel + 0.3));
+  document.getElementById("btnZoomReset")?.addEventListener("click", () => applyDigitalZoom(1.0, true));
+
+  streamViewport?.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.2 : -0.2;
+      applyDigitalZoom(zoomLevel + delta);
+    },
+    { passive: false }
+  );
+
+  streamViewport?.addEventListener("pointerdown", (e) => {
+    if (zoomLevel <= 1.0) return;
+    isDraggingZoom = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    streamViewport.setPointerCapture(e.pointerId);
+  });
+
+  streamViewport?.addEventListener("pointermove", (e) => {
+    if (!isDraggingZoom || zoomLevel <= 1.0) return;
+    const dx = (e.clientX - dragStartX) / zoomLevel;
+    const dy = (e.clientY - dragStartY) / zoomLevel;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    panX += dx;
+    panY += dy;
+    applyDigitalZoom(zoomLevel);
+  });
+
+  const stopZoomDrag = () => {
+    isDraggingZoom = false;
+  };
+  streamViewport?.addEventListener("pointerup", stopZoomDrag);
+  streamViewport?.addEventListener("pointercancel", stopZoomDrag);
+
   // Scan Now
   document.getElementById("btnScanNow")?.addEventListener("click", async () => {
     showStatus("Prüfe 1080p-Frame der Tapo C200 auf bekannte Gesichter...", "info");
