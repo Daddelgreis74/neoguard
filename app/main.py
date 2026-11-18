@@ -94,6 +94,7 @@ class GuardSettingsUpdate(BaseModel):
     tracking_return_home: Optional[bool] = None
     tracking_home_delay_sec: Optional[int] = None
     tts_voice: Optional[str] = None
+    tts_volume: Optional[int] = None
 
 
 class PersonCreate(BaseModel):
@@ -342,12 +343,14 @@ def speak_text_on_camera(payload: SpeakRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="Text darf nicht leer sein.")
     raw_cfg = store.get_raw_config()
     voice_name = payload.voice or raw_cfg["guard"].get("tts_voice", "de_DE-thorsten-medium")
+    volume_pct = int(raw_cfg["guard"].get("tts_volume", 100))
     formatted_text = format_greeting_template(payload.text.strip(), name="Daniel")
     res = tts_service.speak_on_camera(
         text=formatted_text,
         camera_cfg=raw_cfg["camera"],
         voice_name=voice_name,
         go2rtc_url=raw_cfg["guard"].get("go2rtc_url", "http://127.0.0.1:1984"),
+        volume_percent=volume_pct,
     )
     store.add_event(
         person_name="Manuelle Durchsage",

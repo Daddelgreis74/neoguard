@@ -84,15 +84,17 @@ class LocalTTSService:
         text: str,
         voice_name: str = "de_DE-thorsten-medium",
         output_path: Optional[Path] = None,
+        volume_percent: int = 100,
     ) -> Path:
         """
         Synthesize German text into a WAV file completely offline using Piper TTS.
-        Falls back to a pleasant chime WAV if Piper binary/model is unavailable.
+        Applies optional software gain (10% - 200%) with soft clipping protection.
         """
         target_path = output_path or self.last_wav_path
         clean_text = text.strip() or "Hallo!"
         onnx_path, json_path = self.ensure_voice_model(voice_name)
 
+        synthesized = False
         piper_bin = shutil.which("piper") or (
             "/usr/local/bin/piper" if Path("/usr/local/bin/piper").exists() else None
         )
@@ -112,12 +114,36 @@ class LocalTTSService:
                     check=True,
                     timeout=15,
                 )
-                return target_path
+                synthesized = True
             except Exception as cli_exc:
                 logger.warning("Piper CLI failed: %s", cli_exc)
 
-        self._write_chime_wav(target_path, duration_sec=1.2)
+        if not synthesized:
+            self._write_chime_wav(target_path, duration_sec=1.2)
+
+        if int(volume_percent) != 100:
+            self._apply_wav_volume(target_path, volume_percent)
         return target_path
+
+    @staticmethod
+    def _apply_wav_volume(wav_path: Path, volume_percent: int) -> None:
+        """Scale 16-bit PCM WAV amplitude cleanly using numpy with clipping protection."""
+        import numpy as np
+
+        gain = max(0.1, min(2.0, float(volume_percent) / 100.0))
+        try:
+            with wave.open(str(wav_path), "rb") as wf:
+                params = wf.getparams()
+                raw = wf.readframes(wf.getnframes())
+            if params.sampwidth != 2 or not raw:
+                return
+            samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) * gain
+            samples = np.clip(samples, -32767.0, 32767.0).astype(np.int16)
+            with wave.open(str(wav_path), "wb") as wf:
+                wf.setparams(params)
+                wf.writeframes(samples.tobytes())
+        except Exception as exc:
+            logger.debug("Volume scaling skipped: %s", exc)
 
     @staticmethod
     def _write_chime_wav(target_path: Path, sample_rate: int = 16000, duration_sec: float = 1.0) -> None:
@@ -180,9 +206,12 @@ class LocalTTSService:
         camera_cfg: Dict[str, Any],
         voice_name: str = "de_DE-thorsten-medium",
         go2rtc_url: str = "http://127.0.0.1:1984",
+        volume_percent: int = 100,
     ) -> Dict[str, Any]:
         """Synthesize text offline and immediately play it on the Tapo C200 speaker."""
-        wav_path = self.synthesize_to_wav(text, voice_name=voice_name)
+        wav_path = self.synthesize_to_wav(
+            text, voice_name=voice_name, volume_percent=volume_percent
+        )
         delivery = self.send_wav_to_camera_speaker(
             wav_path=wav_path,
             camera_cfg=camera_cfg,

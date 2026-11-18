@@ -184,6 +184,13 @@
             <button type="button" class="btn btn-glass btn-sm quick-tts-chip" data-text="Guten Morgen! Es ist {time} Uhr.">☀️ Guten Morgen</button>
             <button type="button" class="btn btn-glass btn-sm quick-tts-chip" data-text="Achtung, die Raumüberwachung ist aktiv.">🛡️ Raumüberwachung aktiv</button>
           </div>
+          <div class="d-flex align-items-center gap-2 mt-3 pt-2 border-top border-secondary border-opacity-25">
+            <span class="small text-secondary text-nowrap"><i class="fa-solid fa-volume-low text-success me-1"></i>Lautstärke</span>
+            <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnVolMinus" title="Leiser"><i class="fa-solid fa-minus"></i></button>
+            <input type="range" class="form-range flex-grow-1" id="ttsVolumeSlider" min="10" max="200" step="10" value="100">
+            <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnVolPlus" title="Lauter"><i class="fa-solid fa-plus"></i></button>
+            <span class="badge bg-success bg-opacity-25 text-success" id="ttsVolumeVal" style="min-width: 48px;">100%</span>
+          </div>
         </div>
       </div>
 

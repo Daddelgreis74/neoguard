@@ -114,6 +114,11 @@
       const speedBadge = document.getElementById("trackingSpeedVal");
       if (slider) slider.value = speedVal;
       if (speedBadge) speedBadge.textContent = `${Number(speedVal).toFixed(1)}x`;
+      const volVal = guard.tts_volume ?? 100;
+      const volSlider = document.getElementById("ttsVolumeSlider");
+      const volBadge = document.getElementById("ttsVolumeVal");
+      if (volSlider) volSlider.value = volVal;
+      if (volBadge) volBadge.textContent = `${volVal}%`;
 
       renderPersons(data.persons || []);
     } catch (err) {
@@ -509,6 +514,35 @@
     chip.addEventListener("click", () => {
       document.getElementById("speakTextInput").value = chip.getAttribute("data-text");
     });
+  });
+
+  // TTS Volume Slider (10% - 200%)
+  const saveTtsVolume = async (val) => {
+    const clamped = Math.max(10, Math.min(200, Math.round(val / 10) * 10));
+    const slider = document.getElementById("ttsVolumeSlider");
+    const badge = document.getElementById("ttsVolumeVal");
+    if (slider) slider.value = clamped;
+    if (badge) badge.textContent = `${clamped}%`;
+    await fetch("/api/config/guard", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tts_volume: clamped }),
+    });
+  };
+  document.getElementById("ttsVolumeSlider")?.addEventListener("input", (e) => {
+    const badge = document.getElementById("ttsVolumeVal");
+    if (badge) badge.textContent = `${e.target.value}%`;
+  });
+  document.getElementById("ttsVolumeSlider")?.addEventListener("change", (e) => {
+    saveTtsVolume(parseInt(e.target.value, 10));
+  });
+  document.getElementById("btnVolMinus")?.addEventListener("click", () => {
+    const cur = parseInt(document.getElementById("ttsVolumeSlider")?.value || "100", 10);
+    saveTtsVolume(cur - 10);
+  });
+  document.getElementById("btnVolPlus")?.addEventListener("click", () => {
+    const cur = parseInt(document.getElementById("ttsVolumeSlider")?.value || "100", 10);
+    saveTtsVolume(cur + 10);
   });
 
   // Add Person Form

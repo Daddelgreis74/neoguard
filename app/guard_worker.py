@@ -143,6 +143,7 @@ class RoomGuardWorker:
         threshold = float(guard_cfg.get("similarity_threshold", 0.38))
         default_cooldown = int(guard_cfg.get("cooldown_minutes", 120))
         voice_name = guard_cfg.get("tts_voice", "de_DE-thorsten-medium")
+        volume_pct = int(guard_cfg.get("tts_volume", 100))
         go2rtc_url = guard_cfg.get("go2rtc_url", "http://127.0.0.1:1984")
         now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -196,6 +197,7 @@ class RoomGuardWorker:
                         camera_cfg=camera_cfg,
                         voice_name=voice_name,
                         go2rtc_url=go2rtc_url,
+                        volume_percent=volume_pct,
                     )
                     audio_sent = bool(tts_res.get("ok"))
 
@@ -280,6 +282,7 @@ class RoomGuardWorker:
                         camera_cfg=camera_cfg,
                         voice_name=voice_name,
                         go2rtc_url=go2rtc_url,
+                        volume_percent=volume_pct,
                     )
                     audio_sent = bool(tts_res.get("ok"))
                     self.store.add_event(
