@@ -507,6 +507,77 @@
     }
   });
 
+  // Render photos inside Edit Person Modal
+  const renderEditPersonPhotos = (person) => {
+    const box = document.getElementById("editPersonPhotos");
+    if (!box) return;
+    const photos = person?.photos || [];
+    if (!photos.length) {
+      box.innerHTML = `<span class="small text-secondary">Noch keine Referenzfotos hinterlegt.</span>`;
+      return;
+    }
+    box.innerHTML = photos
+      .map(
+        (fn) => `
+          <div class="position-relative d-inline-block">
+            <img src="/api/faces/${encodeURIComponent(fn)}" class="face-thumb" style="width: 64px; height: 64px;" alt="Foto">
+            <button type="button" class="btn btn-danger btn-sm position-absolute top-0 end-0 p-0 d-flex align-items-center justify-content-center"
+              style="width: 20px; height: 20px; border-radius: 50%; transform: translate(30%, -30%); font-size: 0.7rem;"
+              data-delete-photo="${escapeHtml(fn)}" data-person-id="${escapeHtml(person.id)}" title="Foto entfernen">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        `
+      )
+      .join("");
+  };
+
+  document.getElementById("editPersonPhotos")?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-delete-photo]");
+    if (!btn) return;
+    const fn = btn.getAttribute("data-delete-photo");
+    const pid = btn.getAttribute("data-person-id");
+    const res = await fetch(`/api/persons/${encodeURIComponent(pid)}/photo/${encodeURIComponent(fn)}`, {
+      method: "DELETE",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      renderEditPersonPhotos(data.person);
+      showStatus("Foto entfernt.", "info");
+      loadConfig();
+    }
+  });
+
+  document.getElementById("btnEditCapturePhoto")?.addEventListener("click", async () => {
+    const pid = document.getElementById("editPersonId").value;
+    if (!pid) return;
+    const res = await fetch(`/api/persons/${encodeURIComponent(pid)}/capture`, { method: "POST" });
+    if (res.ok) {
+      const data = await res.json();
+      renderEditPersonPhotos(data.person);
+      showStatus("Neues Foto von Tapo C200 aufgenommen!", "success");
+      loadConfig();
+    }
+  });
+
+  document.getElementById("inputEditUploadPhoto")?.addEventListener("change", async (e) => {
+    const pid = document.getElementById("editPersonId").value;
+    if (!pid || !e.target.files.length) return;
+    const formData = new FormData();
+    formData.append("file", e.target.files[0]);
+    const res = await fetch(`/api/persons/${encodeURIComponent(pid)}/photo`, {
+      method: "POST",
+      body: formData,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      renderEditPersonPhotos(data.person);
+      showStatus("Neues Foto hochgeladen!", "success");
+      loadConfig();
+    }
+    e.target.value = "";
+  });
+
   // Edit Person Form Submit
   document.getElementById("editPersonForm")?.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -543,6 +614,7 @@
         document.getElementById("editPersonGreeting").value = person.greeting || "";
         document.getElementById("editPersonCooldown").value = person.cooldown_minutes ?? 120;
         document.getElementById("editPersonEnabled").checked = person.enabled !== false;
+        renderEditPersonPhotos(person);
         new bootstrap.Modal(document.getElementById("editPersonModal")).show();
       }
       return;

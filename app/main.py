@@ -314,6 +314,14 @@ def capture_person_photo_from_camera(person_id: str) -> Dict[str, Any]:
     return {"ok": True, "person": updated, "filename": filename, "bbox": bbox}
 
 
+@app.delete("/api/persons/{person_id}/photo/{filename}")
+def delete_person_photo(person_id: str, filename: str) -> Dict[str, Any]:
+    updated = store.delete_person_photo(person_id, filename)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Foto oder Person nicht gefunden.")
+    return {"ok": True, "person": updated}
+
+
 @app.get("/api/faces/{filename}")
 def get_face_photo(filename: str) -> FileResponse:
     safe_name = Path(filename).name

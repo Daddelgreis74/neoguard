@@ -215,6 +215,32 @@ class ConfigStore:
                     return res
             return None
 
+    def delete_person_photo(self, person_id: str, filename: str) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            safe_name = Path(filename).name
+            for p in self._config["persons"]:
+                if p["id"] == person_id:
+                    photos = p.get("photos", [])
+                    embeddings = p.get("embeddings", [])
+                    if safe_name not in photos:
+                        return None
+                    idx = photos.index(safe_name)
+                    photos.pop(idx)
+                    if idx < len(embeddings):
+                        embeddings.pop(idx)
+                    photo_path = self.faces_dir / safe_name
+                    if photo_path.exists():
+                        try:
+                            photo_path.unlink()
+                        except OSError:
+                            pass
+                    self._save_config_unlocked(self._config)
+                    res = json.loads(json.dumps(p))
+                    res["photo_count"] = len(res.get("photos", []))
+                    res.pop("embeddings", None)
+                    return res
+            return None
+
     def delete_person(self, person_id: str) -> bool:
         with self._lock:
             before = len(self._config["persons"])
