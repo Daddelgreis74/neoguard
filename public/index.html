@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="de" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tapo Room Guard — AI Raumüberwachung & Begrüßung</title>
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <link href="css/custom.css" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Ambient Aurora Background -->
+  <div class="bg-scene" aria-hidden="true">
+    <div class="bg-grid"></div>
+    <div class="bg-orb orb-1"></div>
+    <div class="bg-orb orb-2"></div>
+    <div class="bg-orb orb-3"></div>
+  </div>
+
+  <div class="container py-4 app-shell">
+    <!-- Topbar -->
+    <nav class="neo-topbar d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+      <div class="d-flex align-items-center gap-3">
+        <img src="icon.svg" alt="Tapo Room Guard" width="38" height="38">
+        <div>
+          <h5 class="mb-0 fw-bold">Tapo Room Guard</h5>
+          <div class="small text-secondary">
+            <span>TP-Link Tapo C200</span> ·
+            <span id="engineBadge" class="text-info">100% Lokal (Offline Vision & Piper TTS)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span id="guardActiveBadge" class="badge rounded-pill text-bg-success px-3 py-2">
+          <i class="fa-solid fa-shield-halved me-1"></i>Überwachung Aktiv
+        </span>
+        <button class="btn btn-glass btn-sm px-3 py-2" id="btnOpenSettings" data-bs-toggle="modal" data-bs-target="#settingsModal">
+          <i class="fa-solid fa-sliders me-1"></i>Kamera & KI-Setup
+        </button>
+        <button class="btn btn-glass btn-sm px-2.5 py-2" id="btnThemeToggle" title="Dark/Light Mode">
+          <i class="fa-solid fa-sun" id="themeIcon"></i>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Status Toast -->
+    <div id="statusAlert" class="alert alert-info d-none mb-4 py-2 small rounded-3"></div>
+
+    <div class="row g-4">
+      <!-- LEFT COLUMN: Live Stream, PTZ & Direct Speaker Output -->
+      <div class="col-lg-7">
+        <!-- Live Camera & PTZ Panel -->
+        <div class="glass-panel p-4 mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+            <div>
+              <h5 class="fw-bold mb-0"><i class="fa-solid fa-video text-info me-2"></i>Tapo C200 Live-Ansicht</h5>
+              <small class="text-secondary" id="cameraIpSubtitle">IP: 192.168.178.50 · RTSP Port 554 / ONVIF 2020</small>
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-neo-primary btn-sm px-3" id="btnScanNow" title="Jetzt Frame analysieren & begrüßen">
+                <i class="fa-solid fa-user-check me-1"></i>Jetzt Erkennen
+              </button>
+              <button class="btn btn-glass btn-sm" id="btnPrivacyToggle" title="Linse verdecken (Privatsphäre)">
+                <i class="fa-solid fa-eye-slash me-1"></i>Privacy
+              </button>
+            </div>
+          </div>
+
+          <div class="stream-viewport mb-3">
+            <img id="liveStreamImg" src="/api/camera/stream.mjpg" alt="Tapo C200 Stream">
+            <div class="stream-badge-overlay">
+              <span class="badge-live"><i class="fa-solid fa-circle fa-2xs me-1"></i>LIVE</span>
+              <span class="badge bg-dark bg-opacity-75 text-light" id="streamResBadge">1080p AI / 360p Preview</span>
+            </div>
+          </div>
+
+          <!-- PTZ & Presets Row -->
+          <div class="row align-items-center g-3 pt-2">
+            <div class="col-sm-5">
+              <div class="text-center small text-secondary mb-2 fw-semibold">PTZ Schwenken / Neigen (360° / 114°)</div>
+              <div class="ptz-dpad">
+                <div></div>
+                <button class="ptz-btn" data-ptz="up" title="Nach oben"><i class="fa-solid fa-chevron-up"></i></button>
+                <div></div>
+                <button class="ptz-btn" data-ptz="left" title="Nach links"><i class="fa-solid fa-chevron-left"></i></button>
+                <button class="ptz-btn" id="btnRefreshSnap" title="Bild aktualisieren"><i class="fa-solid fa-rotate"></i></button>
+                <button class="ptz-btn" data-ptz="right" title="Nach rechts"><i class="fa-solid fa-chevron-right"></i></button>
+                <div></div>
+                <button class="ptz-btn" data-ptz="down" title="Nach unten"><i class="fa-solid fa-chevron-down"></i></button>
+                <div></div>
+              </div>
+            </div>
+            <div class="col-sm-7">
+              <div class="p-3 rounded-4" style="background: var(--surface-subtle); border: 1px solid var(--glass-border);">
+                <div class="small fw-semibold mb-2"><i class="fa-solid fa-compass text-info me-1"></i>Schnell-Positionen (Presets)</div>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                  <button class="btn btn-glass btn-sm flex-fill" data-preset="1">1 · Tür / Eingang</button>
+                  <button class="btn btn-glass btn-sm flex-fill" data-preset="2">2 · Raum-Mitte</button>
+                  <button class="btn btn-glass btn-sm flex-fill" data-preset="3">3 · Schreibtisch</button>
+                </div>
+                <div class="small text-secondary">
+                  <i class="fa-solid fa-circle-info me-1"></i>Die Kamera schwenkt über <code>pytapo</code> (Port 443) und gibt Sprache per <code>go2rtc</code> Backchannel direkt auf dem C200-Lautsprecher aus.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Direct Speaker Output (Piper TTS -> Tapo C200 Speaker) -->
+        <div class="glass-panel p-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold mb-0"><i class="fa-solid fa-volume-high text-success me-2"></i>Direkte Kamera-Durchsage (Piper TTS)</h5>
+            <a href="/api/tts/last.wav" target="_blank" class="btn btn-glass btn-sm" title="Letzte erzeugte WAV-Datei anhören">
+              <i class="fa-solid fa-file-audio me-1"></i>Letzte WAV
+            </a>
+          </div>
+          <form id="speakForm" class="row g-2">
+            <div class="col-sm-9">
+              <input type="text" class="form-control" id="speakTextInput" placeholder="z. B. {greeting_time}! Schön, dass du da bist." value="{greeting_time}! Schön, dass du da bist." required>
+            </div>
+            <div class="col-sm-3 d-grid">
+              <button type="submit" class="btn btn-neo-primary" id="btnSpeakNow">
+                <i class="fa-solid fa-bullhorn me-1"></i>Sprechen
+              </button>
+            </div>
+          </form>
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <button type="button" class="btn btn-glass btn-sm quick-tts-chip" data-text="Hallo Daniel! Willkommen zu Hause.">👋 Willkommen zu Hause</button>
+            <button type="button" class="btn btn-glass btn-sm quick-tts-chip" data-text="Guten Morgen! Es ist {time} Uhr.">☀️ Guten Morgen</button>
+            <button type="button" class="btn btn-glass btn-sm quick-tts-chip" data-text="Achtung, die Raumüberwachung ist aktiv.">🛡️ Raumüberwachung aktiv</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN: Persons Enrollment & Event History -->
+      <div class="col-lg-5">
+        <!-- Enrolled Persons Panel -->
+        <div class="glass-panel p-4 mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h5 class="fw-bold mb-0"><i class="fa-solid fa-users-viewfinder text-info me-2"></i>Bekannte Personen</h5>
+              <small class="text-secondary">Lokale Gesichts-Embeddings & persönliche Begrüßung</small>
+            </div>
+            <button class="btn btn-neo-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#addPersonModal">
+              <i class="fa-solid fa-user-plus me-1"></i>Person +
+            </button>
+          </div>
+
+          <div id="personsList" class="d-flex flex-column gap-3">
+            <!-- Rendered by app.js -->
+          </div>
+        </div>
+
+        <!-- Event History Panel -->
+        <div class="glass-panel p-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h5 class="fw-bold mb-0"><i class="fa-solid fa-clock-rotate-left text-warning me-2"></i>Erkennungs- & Begrüßungs-Log</h5>
+              <small class="text-secondary">Letzte Raum-Ereignisse mit Kamera-Snapshot</small>
+            </div>
+            <button class="btn btn-glass btn-sm" id="btnClearEvents" title="Historie leeren">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+
+          <div id="eventsList" class="d-flex flex-column gap-2" style="max-height: 400px; overflow-y: auto;">
+            <!-- Rendered by app.js -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Add Person -->
+  <div class="modal fade" id="addPersonModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content glass-panel border-0 p-2" style="background: var(--glass-modal-bg);">
+        <div class="modal-header border-0">
+          <h5 class="modal-title fw-bold"><i class="fa-solid fa-user-plus text-info me-2"></i>Neue Person anlegen</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="addPersonForm">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Name der Person</label>
+              <input type="text" class="form-control" id="personNameInput" placeholder="z. B. Daniel" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Individueller Begrüßungstext</label>
+              <input type="text" class="form-control" id="personGreetingInput" placeholder="{greeting_time}, {name}! Schön dich zu sehen.">
+              <div class="form-text small">Platzhalter: <code>{name}</code>, <code>{greeting_time}</code> (Guten Morgen/Tag/Abend), <code>{time}</code></div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-semibold">Begrüßungs-Cooldown (Minuten)</label>
+              <input type="number" class="form-control" id="personCooldownInput" value="120" min="0" max="1440">
+              <div class="form-text small">Verhindert, dass dieselbe Person bei jeder Bewegung erneut begrüßt wird.</div>
+            </div>
+          </div>
+          <div class="modal-footer border-0">
+            <button type="button" class="btn btn-glass" data-bs-dismiss="modal">Abbrechen</button>
+            <button type="submit" class="btn btn-neo-primary px-4">Anlegen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Camera & AI Settings -->
+  <div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content glass-panel border-0 p-2" style="background: var(--glass-modal-bg);">
+        <div class="modal-header border-0">
+          <h5 class="modal-title fw-bold"><i class="fa-solid fa-sliders text-info me-2"></i>Tapo C200 & KI-Raumüberwachung konfigurieren</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="settingsForm">
+          <div class="modal-body">
+            <h6 class="fw-bold text-info mb-3">1. TP-Link Tapo C200 Verbindung</h6>
+            <div class="row g-3 mb-4">
+              <div class="col-md-6">
+                <label class="form-label small fw-semibold">Kamera IP-Adresse</label>
+                <input type="text" class="form-control" id="cfgHost" placeholder="192.168.178.50" required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">RTSP Port</label>
+                <input type="number" class="form-control" id="cfgRtspPort" value="554">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small fw-semibold">ONVIF Port</label>
+                <input type="number" class="form-control" id="cfgOnvifPort" value="2020">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Kamera-Konto Benutzer (Tapo App)</label>
+                <input type="text" class="form-control" id="cfgRtspUser" placeholder="z. B. tapo_admin">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Kamera-Konto Passwort (RTSP)</label>
+                <input type="password" class="form-control" id="cfgRtspPass" placeholder="••••••••">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">TP-Link Cloud-Passwort (für 2-Wege-Audio/PTZ)</label>
+                <input type="password" class="form-control" id="cfgCloudPass" placeholder="Optional falls identisch">
+              </div>
+            </div>
+
+            <h6 class="fw-bold text-info mb-3">2. Lokale KI-Erkennung & Begrüßung</h6>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Überwachung aktiv</label>
+                <select class="form-select" id="cfgGuardEnabled">
+                  <option value="true">Aktiviert</option>
+                  <option value="false">Pausiert</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Prüf-Intervall (Sekunden)</label>
+                <input type="number" step="0.5" min="1" max="60" class="form-control" id="cfgInterval" value="2.0">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Standard-Cooldown (Minuten)</label>
+                <input type="number" min="0" max="1440" class="form-control" id="cfgCooldown" value="120">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Erkennungs-Schwelle (0.25 – 0.65)</label>
+                <input type="number" step="0.02" min="0.20" max="0.80" class="form-control" id="cfgThreshold" value="0.38">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Aktive Uhrzeit (Von – Bis)</label>
+                <div class="input-group">
+                  <input type="time" class="form-control" id="cfgHoursStart" value="06:00">
+                  <input type="time" class="form-control" id="cfgHoursEnd" value="23:00">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Offline Piper TTS Stimme</label>
+                <select class="form-select" id="cfgVoice">
+                  <option value="de_DE-thorsten-medium">Thorsten (Deutsch · Natürlich)</option>
+                  <option value="de_DE-kerstin-low">Kerstin (Deutsch · Schnell)</option>
+                </select>
+              </div>
+              <div class="col-md-8">
+                <label class="form-label small fw-semibold">Standard-Begrüßung für erkannte Personen</label>
+                <input type="text" class="form-control" id="cfgDefaultGreeting" value="{greeting_time}, {name}! Willkommen zurück.">
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <div class="form-check form-switch mb-2">
+                  <input class="form-check-input" type="checkbox" id="cfgAutoPrivacy">
+                  <label class="form-check-label small" for="cfgAutoPrivacy">Nach Begrüßung in Privacy-Mode</label>
+                </div>
+              </div>
+              <div class="col-md-8">
+                <label class="form-label small fw-semibold">Spruch für unbekannte Personen</label>
+                <input type="text" class="form-control" id="cfgUnknownGreeting" value="{greeting_time}! Bitte beachte, dass dieser Raum überwacht wird.">
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <div class="form-check form-switch mb-2">
+                  <input class="form-check-input" type="checkbox" id="cfgGreetUnknown">
+                  <label class="form-check-label small" for="cfgGreetUnknown">Auch Unbekannte ansprechen</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer border-0">
+            <button type="button" class="btn btn-glass" data-bs-dismiss="modal">Schließen</button>
+            <button type="submit" class="btn btn-neo-primary px-4">Speichern & Übernehmen</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
