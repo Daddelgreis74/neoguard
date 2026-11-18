@@ -214,6 +214,12 @@ def goto_camera_preset(payload: PresetRequest) -> Dict[str, Any]:
     return camera_service.goto_preset(raw_cfg["camera"], payload.preset_id)
 
 
+@app.post("/api/camera/preset/save")
+def save_camera_preset(payload: PresetRequest) -> Dict[str, Any]:
+    raw_cfg = store.get_raw_config()
+    return camera_service.save_preset(raw_cfg["camera"], payload.preset_id)
+
+
 # -------------------- Persons & Face Enrollment --------------------
 
 @app.get("/api/persons")

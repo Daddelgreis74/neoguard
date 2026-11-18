@@ -98,14 +98,26 @@
             </div>
             <div class="col-sm-7">
               <div class="p-3 rounded-4" style="background: var(--surface-subtle); border: 1px solid var(--glass-border);">
-                <div class="small fw-semibold mb-2"><i class="fa-solid fa-compass text-info me-1"></i>Schnell-Positionen (Presets)</div>
-                <div class="d-flex flex-wrap gap-2 mb-3">
-                  <button class="btn btn-glass btn-sm flex-fill" data-preset="1">1 · Tür / Eingang</button>
-                  <button class="btn btn-glass btn-sm flex-fill" data-preset="2">2 · Raum-Mitte</button>
-                  <button class="btn btn-glass btn-sm flex-fill" data-preset="3">3 · Schreibtisch</button>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="small fw-semibold"><i class="fa-solid fa-compass text-info me-1"></i>Schnell-Positionen (Presets)</span>
+                  <span class="text-secondary" style="font-size: 0.72rem;"><i class="fa-solid fa-floppy-disk me-1"></i>= Aktuelle Position speichern</span>
+                </div>
+                <div class="d-flex flex-column gap-2 mb-3">
+                  <div class="btn-group">
+                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="1"><i class="fa-solid fa-location-crosshairs text-info me-2"></i>1 · Tür / Eingang anfahren</button>
+                    <button class="btn btn-glass btn-sm px-3" data-save-preset="1" title="Aktuelle Kameraposition auf Platz 1 speichern"><i class="fa-solid fa-floppy-disk text-success"></i></button>
+                  </div>
+                  <div class="btn-group">
+                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="2"><i class="fa-solid fa-location-crosshairs text-info me-2"></i>2 · Raum-Mitte anfahren</button>
+                    <button class="btn btn-glass btn-sm px-3" data-save-preset="2" title="Aktuelle Kameraposition auf Platz 2 speichern"><i class="fa-solid fa-floppy-disk text-success"></i></button>
+                  </div>
+                  <div class="btn-group">
+                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="3"><i class="fa-solid fa-location-crosshairs text-info me-2"></i>3 · Schreibtisch anfahren</button>
+                    <button class="btn btn-glass btn-sm px-3" data-save-preset="3" title="Aktuelle Kameraposition auf Platz 3 speichern"><i class="fa-solid fa-floppy-disk text-success"></i></button>
+                  </div>
                 </div>
                 <div class="small text-secondary">
-                  <i class="fa-solid fa-circle-info me-1"></i>Die Kamera schwenkt über <code>pytapo</code> (Port 443) und gibt Sprache per <code>go2rtc</code> Backchannel direkt auf dem C200-Lautsprecher aus.
+                  <i class="fa-solid fa-circle-info me-1"></i>Kamera per Steuerkreuz ausrichten → rechts auf <i class="fa-solid fa-floppy-disk text-success"></i> klicken, um die Position fest in der Tapo C200 zu speichern.
                 </div>
               </div>
             </div>

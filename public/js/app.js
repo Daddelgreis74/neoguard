@@ -227,7 +227,7 @@
     });
   });
 
-  // Presets
+  // Presets (Goto)
   document.querySelectorAll("[data-preset]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const preset_id = btn.getAttribute("data-preset");
@@ -241,6 +241,24 @@
         showStatus(`Position ${preset_id} angefahren.`, "success");
       } else {
         showStatus(`Preset-Hinweis: ${data.error}`, "warning");
+      }
+    });
+  });
+
+  // Presets (Save current position)
+  document.querySelectorAll("[data-save-preset]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const preset_id = btn.getAttribute("data-save-preset");
+      const res = await fetch("/api/camera/preset/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preset_id }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        showStatus(`Aktuelle Kameraposition fest auf Platz ${preset_id} gespeichert!`, "success");
+      } else {
+        showStatus(`Speichern fehlgeschlagen: ${data.error}`, "warning");
       }
     });
   });

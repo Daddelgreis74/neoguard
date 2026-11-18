@@ -280,9 +280,47 @@ class TapoCameraService:
             )
             if resp.status_code == 200 and "Fault" not in resp.text:
                 return {"ok": True, "method": "onvif", "preset_id": preset_id}
-            return {"ok": False, "error": f"Preset {preset_id} in der Tapo App noch nicht gespeichert."}
+            return {"ok": False, "error": f"Position {preset_id} ist noch nicht gespeichert. Klicke erst auf das Speichern-Symbol (💾)."}
         except Exception as exc:
             logger.warning("Goto preset failed: %s", exc)
+            return {"ok": False, "error": str(exc)}
+
+    def save_preset(self, camera_cfg: Dict[str, Any], preset_id: str) -> Dict[str, Any]:
+        """Save current camera PTZ position into preset_id via ONVIF Port 2020."""
+        try:
+            # Ensure earlier presets exist if user saves slot 2 or 3 first
+            target_num = int(preset_id) if preset_id.isdigit() else 1
+            for slot in range(1, target_num + 1):
+                slot_str = str(slot)
+                xml_body = f"""<tptz:SetPreset>
+  <tptz:ProfileToken>profile_1</tptz:ProfileToken>
+  <tptz:PresetName>Pos{slot_str}</tptz:PresetName>
+  <tptz:PresetToken>{slot_str}</tptz:PresetToken>
+</tptz:SetPreset>""" if slot == target_num else ""
+                if not xml_body:
+                    continue
+                resp = self._onvif_request(camera_cfg, "/onvif/ptz_service", xml_body)
+                if resp.status_code == 200 and "SetPresetResponse" in resp.text:
+                    return {"ok": True, "method": "onvif", "preset_id": preset_id}
+                # Fallback without PresetToken if slot wasn't created yet
+                resp2 = self._onvif_request(
+                    camera_cfg,
+                    "/onvif/ptz_service",
+                    f"""<tptz:SetPreset>
+  <tptz:ProfileToken>profile_1</tptz:ProfileToken>
+  <tptz:PresetName>Pos{preset_id}</tptz:PresetName>
+</tptz:SetPreset>""",
+                )
+                if resp2.status_code == 200 and "SetPresetResponse" in resp2.text:
+                    token_m = re.search(r"<tptz:PresetToken>([^<]+)</tptz:PresetToken>", resp2.text)
+                    return {
+                        "ok": True,
+                        "method": "onvif",
+                        "preset_id": token_m.group(1) if token_m else preset_id,
+                    }
+            return {"ok": False, "error": "ONVIF SetPreset fehlgeschlagen."}
+        except Exception as exc:
+            logger.warning("Save preset failed: %s", exc)
             return {"ok": False, "error": str(exc)}
 
     def get_camera_status(self, camera_cfg: Dict[str, Any]) -> Dict[str, Any]:
