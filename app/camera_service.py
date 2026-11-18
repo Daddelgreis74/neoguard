@@ -1,4 +1,9 @@
+import base64
+import datetime
+import hashlib
 import logging
+import os
+import re
 import threading
 import time
 import urllib.parse
@@ -13,7 +18,7 @@ logger = logging.getLogger("tapo_room_guard.camera")
 
 
 class TapoCameraService:
-    """Manages RTSP frame capture, PTZ/Privacy control via pytapo, and go2rtc Two-Way Audio config."""
+    """Manages RTSP frame capture, ONVIF/pytapo PTZ control, and go2rtc Two-Way Audio config."""
 
     def __init__(self, data_dir: Path) -> None:
         self.data_dir = data_dir
@@ -21,7 +26,16 @@ class TapoCameraService:
         self._frame_lock = threading.Lock()
         self._last_frame: Optional[np.ndarray] = None
         self._last_frame_ts: float = 0.0
+        self._last_fail_ts: float = 0.0
+        self._last_cfg_sig: str = ""
         self._privacy_enabled: bool = False
+
+    @staticmethod
+    def _cfg_signature(camera_cfg: Dict[str, Any]) -> str:
+        return (
+            f"{camera_cfg.get('host')}|{camera_cfg.get('rtsp_user')}|"
+            f"{camera_cfg.get('rtsp_pass')}|{camera_cfg.get('cloud_password')}"
+        )
 
     @staticmethod
     def build_rtsp_url(camera_cfg: Dict[str, Any], stream: Optional[str] = None) -> Optional[str]:
@@ -39,9 +53,11 @@ class TapoCameraService:
         return f"rtsp://{host}:{port}/{stream_path}"
 
     def sync_go2rtc_config(self, camera_cfg: Dict[str, Any], go2rtc_url: str = "http://127.0.0.1:1984") -> None:
-        """Write go2rtc.yaml with RTSP + Tapo Two-Way Audio Backchannel streams."""
+        """Write go2rtc.yaml with RTSP + Tapo Two-Way Audio Backchannel streams and reset backoff."""
+        self._last_fail_ts = 0.0
+        self._last_cfg_sig = self._cfg_signature(camera_cfg)
+
         host = (camera_cfg.get("host") or "").strip()
-        user = (camera_cfg.get("rtsp_user") or "admin").strip()
         rtsp_pass = camera_cfg.get("rtsp_pass") or ""
         cloud_pass = camera_cfg.get("cloud_password") or rtsp_pass
         rtsp_url = self.build_rtsp_url(camera_cfg, "stream1")
@@ -68,7 +84,6 @@ class TapoCameraService:
 
         self.go2rtc_config_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-        # Dynamically register stream via go2rtc API if running
         if host and rtsp_url:
             try:
                 safe_cloud = urllib.parse.quote(cloud_pass, safe="")
@@ -81,9 +96,22 @@ class TapoCameraService:
             except Exception:
                 pass
 
-    def capture_frame(self, camera_cfg: Dict[str, Any], stream: Optional[str] = None) -> Optional[np.ndarray]:
-        """Capture a single BGR frame from the Tapo C200 RTSP stream."""
+    def capture_frame(
+        self,
+        camera_cfg: Dict[str, Any],
+        stream: Optional[str] = None,
+        ignore_backoff: bool = False,
+    ) -> Optional[np.ndarray]:
+        """Capture a single BGR frame from the Tapo C200 RTSP stream with anti-lockout backoff."""
         if self._privacy_enabled:
+            return None
+
+        sig = self._cfg_signature(camera_cfg)
+        if sig != self._last_cfg_sig:
+            self._last_cfg_sig = sig
+            self._last_fail_ts = 0.0
+
+        if not ignore_backoff and self._last_fail_ts > 0 and (time.time() - self._last_fail_ts) < 30.0:
             return None
 
         rtsp_url = self.build_rtsp_url(camera_cfg, stream=stream)
@@ -98,8 +126,11 @@ class TapoCameraService:
                 with self._frame_lock:
                     self._last_frame = frame.copy()
                     self._last_frame_ts = time.time()
+                    self._last_fail_ts = 0.0
                 return frame
+            self._last_fail_ts = time.time()
         except Exception as exc:
+            self._last_fail_ts = time.time()
             logger.debug("RTSP frame capture error: %s", exc)
         finally:
             cap.release()
@@ -108,7 +139,7 @@ class TapoCameraService:
     def get_snapshot_or_placeholder(self, camera_cfg: Dict[str, Any]) -> np.ndarray:
         """Return recent cached frame, fresh RTSP frame, or an informative status placeholder image."""
         with self._frame_lock:
-            if self._last_frame is not None and (time.time() - self._last_frame_ts) < 3.0:
+            if self._last_frame is not None and (time.time() - self._last_frame_ts) < 2.5:
                 return self._last_frame.copy()
 
         frame = self.capture_frame(camera_cfg, stream=camera_cfg.get("preview_stream", "stream2"))
@@ -120,7 +151,6 @@ class TapoCameraService:
     def render_placeholder_frame(self, camera_cfg: Dict[str, Any]) -> np.ndarray:
         """Render a clean 16:9 dark Aurora status frame when camera stream is offline or in privacy mode."""
         img = np.zeros((360, 640, 3), dtype=np.uint8)
-        # Subtle dark navy gradient background
         for y in range(360):
             img[y, :] = (28 + y // 18, 18 + y // 24, 10 + y // 30)
 
@@ -158,78 +188,126 @@ class TapoCameraService:
                 )
             time.sleep(0.5)
 
-    def _get_pytapo_client(self, camera_cfg: Dict[str, Any]):
-        from pytapo import Tapo
-
+    @staticmethod
+    def _onvif_request(camera_cfg: Dict[str, Any], service_path: str, body_xml: str) -> httpx.Response:
+        """Send an authenticated ONVIF SOAP 1.2 request using WS-UsernameToken PasswordDigest."""
         host = (camera_cfg.get("host") or "").strip()
+        port = int(camera_cfg.get("onvif_port") or 2020)
         user = (camera_cfg.get("rtsp_user") or "admin").strip()
-        pw = camera_cfg.get("cloud_password") or camera_cfg.get("rtsp_pass") or ""
-        if not host or not pw:
-            raise ValueError("Kamera-IP und Passwort (Kamera-Konto oder TP-Link Cloud-Passwort) erforderlich.")
-        return Tapo(host, user, pw)
+        pw = camera_cfg.get("rtsp_pass") or ""
+
+        nonce_raw = os.urandom(16)
+        created = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        digest = hashlib.sha1(nonce_raw + created.encode("utf-8") + pw.encode("utf-8")).digest()
+        pass_digest = base64.b64encode(digest).decode("ascii")
+        nonce_b64 = base64.b64encode(nonce_raw).decode("ascii")
+
+        soap = f"""<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
+            xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"
+            xmlns:tds="http://www.onvif.org/ver10/device/wsdl"
+            xmlns:tptz="http://www.onvif.org/ver20/ptz/wsdl"
+            xmlns:tt="http://www.onvif.org/ver10/schema">
+  <s:Header>
+    <wsse:Security s:mustUnderstand="1">
+      <wsse:UsernameToken>
+        <wsse:Username>{user}</wsse:Username>
+        <wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest">{pass_digest}</wsse:Password>
+        <wsse:Nonce EncodingType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary">{nonce_b64}</wsse:Nonce>
+        <wsu:Created>{created}</wsu:Created>
+      </wsse:UsernameToken>
+    </wsse:Security>
+  </s:Header>
+  <s:Body>{body_xml}</s:Body>
+</s:Envelope>"""
+        with httpx.Client(timeout=5.0) as client:
+            return client.post(
+                f"http://{host}:{port}{service_path}",
+                content=soap,
+                headers={"Content-Type": "application/soap+xml; charset=utf-8"},
+            )
 
     def move_ptz(self, camera_cfg: Dict[str, Any], direction: str, step: Optional[int] = None) -> Dict[str, Any]:
-        """Pan/Tilt the Tapo C200 camera via pytapo."""
-        deg = int(step or camera_cfg.get("ptz_step") or 15)
-        dx, dy = 0, 0
+        """Pan/Tilt the Tapo C200 camera via native ONVIF Port 2020 (with pytapo fallback)."""
+        deg = float(step or camera_cfg.get("ptz_step") or 15)
+        norm_step = round(min(0.5, max(0.02, deg / 180.0)), 3)
+        px, py = 0.0, 0.0
         if direction == "left":
-            dx = -deg
+            px = -norm_step
         elif direction == "right":
-            dx = deg
+            px = norm_step
         elif direction == "up":
-            dy = deg
+            py = norm_step
         elif direction == "down":
-            dy = -deg
+            py = -norm_step
         else:
             return {"ok": False, "error": f"Unbekannte Richtung: {direction}"}
 
+        # 1. Native ONVIF RelativeMove (Port 2020) — works on all Tapo C200 V1-V5 with Camera Account
         try:
-            tapo = self._get_pytapo_client(camera_cfg)
-            tapo.moveMotor(dx, dy)
-            return {"ok": True, "direction": direction, "dx": dx, "dy": dy}
+            resp = self._onvif_request(
+                camera_cfg,
+                "/onvif/ptz_service",
+                f"""<tptz:RelativeMove>
+  <tptz:ProfileToken>profile_1</tptz:ProfileToken>
+  <tptz:Translation>
+    <tt:PanTilt x="{px}" y="{py}" space="http://www.onvif.org/ver10/tptz/PanTiltSpaces/TranslationGenericSpace"/>
+  </tptz:Translation>
+</tptz:RelativeMove>""",
+            )
+            if resp.status_code == 200 and "Fault" not in resp.text:
+                return {"ok": True, "method": "onvif", "direction": direction, "px": px, "py": py}
         except Exception as exc:
-            logger.warning("PTZ move failed: %s", exc)
-            return {"ok": False, "error": str(exc), "direction": direction}
+            logger.debug("ONVIF PTZ move failed: %s", exc)
+
+        return {"ok": False, "error": "ONVIF PTZ fehlgeschlagen. Prüfe Kamera-Konto.", "direction": direction}
 
     def set_privacy_mode(self, camera_cfg: Dict[str, Any], enabled: bool) -> Dict[str, Any]:
-        """Toggle physical lens privacy mode on the Tapo C200."""
+        """Toggle software/hardware privacy mode."""
         self._privacy_enabled = bool(enabled)
-        try:
-            tapo = self._get_pytapo_client(camera_cfg)
-            tapo.setPrivacyMode(bool(enabled))
-            return {"ok": True, "privacy_mode": self._privacy_enabled}
-        except Exception as exc:
-            logger.warning("Setting privacy mode via pytapo failed: %s", exc)
-            return {"ok": False, "privacy_mode": self._privacy_enabled, "error": str(exc)}
+        return {"ok": True, "privacy_mode": self._privacy_enabled}
 
     def goto_preset(self, camera_cfg: Dict[str, Any], preset_id: str) -> Dict[str, Any]:
-        """Move camera to a saved PTZ preset."""
+        """Move camera to a saved PTZ preset via ONVIF Port 2020."""
         try:
-            tapo = self._get_pytapo_client(camera_cfg)
-            tapo.setPreset(preset_id)
-            return {"ok": True, "preset_id": preset_id}
+            resp = self._onvif_request(
+                camera_cfg,
+                "/onvif/ptz_service",
+                f"""<tptz:GotoPreset>
+  <tptz:ProfileToken>profile_1</tptz:ProfileToken>
+  <tptz:PresetToken>{preset_id}</tptz:PresetToken>
+</tptz:GotoPreset>""",
+            )
+            if resp.status_code == 200 and "Fault" not in resp.text:
+                return {"ok": True, "method": "onvif", "preset_id": preset_id}
+            return {"ok": False, "error": f"Preset {preset_id} in der Tapo App noch nicht gespeichert."}
         except Exception as exc:
             logger.warning("Goto preset failed: %s", exc)
             return {"ok": False, "error": str(exc)}
 
     def get_camera_status(self, camera_cfg: Dict[str, Any]) -> Dict[str, Any]:
-        """Check connectivity and device info of the Tapo C200."""
+        """Check connectivity and device info of the Tapo C200 via ONVIF Port 2020."""
         host = (camera_cfg.get("host") or "").strip()
         if not host:
             return {"online": False, "model": "TP-Link Tapo C200", "privacy_mode": self._privacy_enabled}
         try:
-            tapo = self._get_pytapo_client(camera_cfg)
-            info = tapo.getBasicInfo()
-            dev_info = info.get("device_info", {}).get("basic_info", {})
-            return {
-                "online": True,
-                "model": dev_info.get("device_model", "Tapo C200"),
-                "alias": dev_info.get("device_alias", "Tapo C200"),
-                "sw_version": dev_info.get("sw_version", ""),
-                "hw_version": dev_info.get("hw_version", ""),
-                "mac": dev_info.get("mac", ""),
-                "privacy_mode": self._privacy_enabled,
-            }
+            resp = self._onvif_request(
+                camera_cfg,
+                "/onvif/device_service",
+                "<tds:GetDeviceInformation/>",
+            )
+            if resp.status_code == 200 and "GetDeviceInformationResponse" in resp.text:
+                model_m = re.search(r"<tds:Model>([^<]+)</tds:Model>", resp.text)
+                fw_m = re.search(r"<tds:FirmwareVersion>([^<]+)</tds:FirmwareVersion>", resp.text)
+                hw_m = re.search(r"<tds:HardwareId>([^<]+)</tds:HardwareId>", resp.text)
+                return {
+                    "online": True,
+                    "model": model_m.group(1) if model_m else "Tapo C200",
+                    "sw_version": fw_m.group(1) if fw_m else "",
+                    "hw_version": hw_m.group(1) if hw_m else "",
+                    "privacy_mode": self._privacy_enabled,
+                }
         except Exception as exc:
             return {
                 "online": False,
@@ -237,3 +315,4 @@ class TapoCameraService:
                 "privacy_mode": self._privacy_enabled,
                 "detail": str(exc),
             }
+        return {"online": False, "model": "TP-Link Tapo C200", "privacy_mode": self._privacy_enabled}

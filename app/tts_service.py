@@ -1,9 +1,9 @@
+import json
 import logging
 import math
 import shutil
 import struct
 import subprocess
-import tempfile
 import urllib.parse
 import urllib.request
 import wave
@@ -45,8 +45,6 @@ class LocalTTSService:
         self.tts_dir = models_dir / "tts"
         self.tts_dir.mkdir(parents=True, exist_ok=True)
         self.last_wav_path = self.tts_dir / "last_greeting.wav"
-        self._loaded_voice_name: Optional[str] = None
-        self._piper_voice: Any = None
 
     def ensure_voice_model(self, voice_name: str = "de_DE-thorsten-medium") -> Tuple[Path, Path]:
         if voice_name not in PIPER_VOICES:
@@ -66,6 +64,19 @@ class LocalTTSService:
             except Exception as exc:
                 logger.warning("Failed to download Piper voice model (%s): %s", voice_name, exc)
 
+        # Sanitize multi-codepoint keys (e.g. "aɪ") in phoneme_id_map for standalone C++ piper binary
+        if json_path.exists():
+            try:
+                cfg_data = json.loads(json_path.read_text(encoding="utf-8"))
+                pmap = cfg_data.get("phoneme_id_map", {})
+                if any(len(k) > 1 for k in pmap):
+                    cfg_data["phoneme_id_map"] = {k: v for k, v in pmap.items() if len(k) <= 1}
+                    json_path.write_text(
+                        json.dumps(cfg_data, ensure_ascii=False, indent=2), encoding="utf-8"
+                    )
+            except Exception:
+                pass
+
         return onnx_path, json_path
 
     def synthesize_to_wav(
@@ -76,50 +87,35 @@ class LocalTTSService:
     ) -> Path:
         """
         Synthesize German text into a WAV file completely offline using Piper TTS.
-        Falls back to a pleasant chime + PCM audio file if Piper model is unavailable.
+        Falls back to a pleasant chime WAV if Piper binary/model is unavailable.
         """
         target_path = output_path or self.last_wav_path
         clean_text = text.strip() or "Hallo!"
         onnx_path, json_path = self.ensure_voice_model(voice_name)
 
-        # Method 1: Python piper.PiperVoice API
-        if onnx_path.exists() and json_path.exists():
+        piper_bin = shutil.which("piper") or (
+            "/usr/local/bin/piper" if Path("/usr/local/bin/piper").exists() else None
+        )
+        if piper_bin and onnx_path.exists() and json_path.exists():
             try:
-                from piper.voice import PiperVoice
-
-                if self._piper_voice is None or self._loaded_voice_name != voice_name:
-                    self._piper_voice = PiperVoice.load(str(onnx_path), config_path=str(json_path))
-                    self._loaded_voice_name = voice_name
-
-                with wave.open(str(target_path), "wb") as wav_file:
-                    self._piper_voice.synthesize(clean_text, wav_file)
+                subprocess.run(
+                    [
+                        piper_bin,
+                        "--model",
+                        str(onnx_path),
+                        "--config",
+                        str(json_path),
+                        "--output_file",
+                        str(target_path),
+                    ],
+                    input=clean_text.encode("utf-8"),
+                    check=True,
+                    timeout=15,
+                )
                 return target_path
-            except Exception as exc:
-                logger.warning("Python PiperVoice synthesis failed (%s), trying piper CLI...", exc)
+            except Exception as cli_exc:
+                logger.warning("Piper CLI failed: %s", cli_exc)
 
-            # Method 2: piper CLI binary
-            piper_bin = shutil.which("piper")
-            if piper_bin:
-                try:
-                    subprocess.run(
-                        [
-                            piper_bin,
-                            "--model",
-                            str(onnx_path),
-                            "--config",
-                            str(json_path),
-                            "--output_file",
-                            str(target_path),
-                        ],
-                        input=clean_text.encode("utf-8"),
-                        check=True,
-                        timeout=15,
-                    )
-                    return target_path
-                except Exception as cli_exc:
-                    logger.warning("Piper CLI failed: %s", cli_exc)
-
-        # Fallback: Generate a clean two-tone greeting chime WAV (16kHz 16-bit Mono)
         self._write_chime_wav(target_path, duration_sec=1.2)
         return target_path
 
@@ -133,7 +129,7 @@ class LocalTTSService:
             frames = bytearray()
             for i in range(num_samples):
                 t = i / sample_rate
-                freq = 523.25 if t < (duration_sec / 2) else 659.25  # C5 -> E5 pleasant chime
+                freq = 523.25 if t < (duration_sec / 2) else 659.25
                 env = math.exp(-3.0 * (t % (duration_sec / 2)))
                 sample = int(12000 * env * math.sin(2.0 * math.pi * freq * t))
                 frames.extend(struct.pack("<h", max(-32768, min(32767, sample))))
@@ -154,23 +150,6 @@ class LocalTTSService:
             return {"ok": False, "error": "Keine Kamera-IP konfiguriert."}
 
         ffmpeg_bin = shutil.which("ffmpeg")
-
-        # 1. Try pushing via go2rtc HTTP API (ffmpeg source -> tapo_c200 backchannel)
-        try:
-            src_arg = f"ffmpeg:{wav_path.resolve()}#audio=pcma"
-            query = urllib.parse.urlencode({"dst": "tapo_c200", "src": src_arg})
-            with httpx.Client(timeout=15.0) as client:
-                resp = client.post(f"{go2rtc_url.rstrip('/')}/api/streams?{query}")
-                if resp.status_code in (200, 201, 204):
-                    return {
-                        "ok": True,
-                        "method": "go2rtc-api-backchannel",
-                        "message": f"Audio an Tapo C200 ({host}) Lautsprecher gesendet.",
-                    }
-        except Exception as exc:
-            logger.debug("go2rtc HTTP API backchannel push not reachable (%s), trying RTSP push...", exc)
-
-        # 2. Try pushing via ffmpeg RTSP backchannel to local go2rtc RTSP server (port 8554)
         if ffmpeg_bin:
             try:
                 cmd = [
@@ -207,7 +186,7 @@ class LocalTTSService:
             "method": "offline-synthesized-only",
             "error": (
                 f"Sprachdatei erzeugt ({wav_path.name}), aber Kamera-Backchannel ({host}) "
-                "war nicht erreichbar. Prüfe Kamera-IP, Passwort und go2rtc."
+                "war nicht erreichbar."
             ),
         }
 
