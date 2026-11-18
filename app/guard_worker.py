@@ -76,6 +76,7 @@ class RoomGuardWorker:
         self._last_unknown_greet_ts: float = 0.0
         self._last_person_seen_ts: float = 0.0
         self._at_home_preset: bool = True
+        self._prev_motion_gray: Optional[np.ndarray] = None
 
     def check_cooldown_expired(self, last_greeted_iso: Optional[str], cooldown_minutes: int) -> bool:
         if not last_greeted_iso or cooldown_minutes <= 0:
@@ -106,9 +107,12 @@ class RoomGuardWorker:
         track_speed = float(guard_cfg.get("tracking_speed", 1.4))
         detections = self.face.detect_and_embed(frame_bgr)
         if not detections:
-            # Fallback: track walking/sideways/back-turned person via HOG body detector
+            # Fallback: track walking/sideways/back-turned person via motion-gated HOG body detector
             if guard_cfg.get("auto_tracking", True):
-                person_bbox = self.face.detect_largest_person_bbox(frame_bgr)
+                person_bbox, cur_gray = self.face.detect_largest_person_bbox(
+                    frame_bgr, prev_gray=self._prev_motion_gray
+                )
+                self._prev_motion_gray = cur_gray
                 if person_bbox is not None:
                     self._last_person_seen_ts = datetime.now(timezone.utc).timestamp()
                     moved = self.camera.track_face_in_frame(
@@ -116,8 +120,11 @@ class RoomGuardWorker:
                     )
                     if moved:
                         self._at_home_preset = False
+                        # Reset motion baseline after motor movement so camera pan doesn't self-trigger
+                        self._prev_motion_gray = None
             return []
 
+        self._prev_motion_gray = None
         self._last_person_seen_ts = datetime.now(timezone.utc).timestamp()
 
         # Auto-Tracking: follow the largest detected face smoothly via ONVIF PTZ

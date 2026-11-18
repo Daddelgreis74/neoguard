@@ -195,18 +195,37 @@ class LocalFaceService:
             return best_person, round(best_score, 3)
         return None, round(max(0.0, best_score), 3)
 
-    def detect_largest_person_bbox(self, image_bgr: np.ndarray) -> Optional[List[int]]:
+    def detect_largest_person_bbox(
+        self,
+        image_bgr: np.ndarray,
+        prev_gray: Optional[np.ndarray] = None,
+    ) -> Tuple[Optional[List[int]], Optional[np.ndarray]]:
         """
-        Fallback full-body / upper-body person detector using OpenCV HOG.
-        Works even when a person is walking sideways or away from the camera.
-        Returns [x, y, w, h] in original image coordinates, or None.
+        Motion-gated full-body person detector using OpenCV HOG.
+        Requires both high HOG confidence (>= 0.85) AND real pixel motion inside the bbox
+        so static objects (e.g. hanging coats/jackets) never trigger false tracking.
+        Returns (bbox_or_None, current_small_gray).
         """
         if image_bgr is None or image_bgr.size == 0:
-            return None
+            return None, prev_gray
+
         h, w = image_bgr.shape[:2]
         target_w = 480
         scale = target_w / float(w)
         small = cv2.resize(image_bgr, (target_w, max(1, int(h * scale))), interpolation=cv2.INTER_AREA)
+        cur_gray = cv2.GaussianBlur(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY), (9, 9), 0)
+
+        # If we have a previous frame, require real motion before running HOG
+        if prev_gray is None or prev_gray.shape != cur_gray.shape:
+            return None, cur_gray
+
+        diff = cv2.absdiff(prev_gray, cur_gray)
+        _, thresh = cv2.threshold(diff, 22, 255, cv2.THRESH_BINARY)
+        total_motion_ratio = float(np.count_nonzero(thresh)) / float(thresh.size)
+        # Ignore completely static scenes (<0.4% changed pixels) and full-frame camera shake (>45%)
+        if total_motion_ratio < 0.004 or total_motion_ratio > 0.45:
+            return None, cur_gray
+
         rects, weights = self._hog.detectMultiScale(
             small,
             winStride=(8, 8),
@@ -214,20 +233,28 @@ class LocalFaceService:
             scale=1.08,
         )
         if len(rects) == 0:
-            return None
-        # Pick detection with highest area * weight
-        best_idx = 0
+            return None, cur_gray
+
+        best_idx = -1
         best_val = -1.0
         for idx, (rx, ry, rw, rh) in enumerate(rects):
-            wt = float(weights[idx]) if idx < len(weights) else 1.0
-            if wt < 0.35:
+            wt = float(weights[idx]) if idx < len(weights) else 0.0
+            if wt < 0.85:
+                continue
+            # Require at least 3% moving pixels inside this specific person bounding box
+            roi = thresh[max(0, ry) : ry + rh, max(0, rx) : rx + rw]
+            if roi.size == 0:
+                continue
+            roi_motion = float(np.count_nonzero(roi)) / float(roi.size)
+            if roi_motion < 0.03:
                 continue
             val = (rw * rh) * wt
             if val > best_val:
                 best_val = val
                 best_idx = idx
-        if best_val < 0:
-            return None
+
+        if best_idx < 0:
+            return None, cur_gray
         rx, ry, rw, rh = rects[best_idx]
         inv = 1.0 / scale
-        return [int(rx * inv), int(ry * inv), int(rw * inv), int(rh * inv)]
+        return [int(rx * inv), int(ry * inv), int(rw * inv), int(rh * inv)], cur_gray
