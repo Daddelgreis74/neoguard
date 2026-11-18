@@ -56,7 +56,7 @@ class LocalFaceService:
                     str(self.yunet_path),
                     "",
                     (320, 320),
-                    score_threshold=0.48,
+                    score_threshold=0.70,
                     nms_threshold=0.3,
                     top_k=5000,
                 )
@@ -89,13 +89,6 @@ class LocalFaceService:
             with self._infer_lock:
                 self._detector.setInputSize((w, h))
                 _, faces = self._detector.detect(image_bgr)
-                # Fallback pass with CLAHE lighting enhancement for dim hallways / backlighting
-                if faces is None or len(faces) == 0:
-                    lab = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB)
-                    l_ch, a_ch, b_ch = cv2.split(lab)
-                    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
-                    enhanced = cv2.cvtColor(cv2.merge((clahe.apply(l_ch), a_ch, b_ch)), cv2.COLOR_LAB2BGR)
-                    _, faces = self._detector.detect(enhanced)
                 if faces is not None:
                     for face in faces:
                         bx, by, bw, bh = int(face[0]), int(face[1]), int(face[2]), int(face[3])
