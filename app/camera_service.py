@@ -234,13 +234,13 @@ class TapoCameraService:
         norm_step = round(min(0.5, max(0.02, deg / 180.0)), 3)
         px, py = 0.0, 0.0
         if direction == "left":
-            px = -norm_step
-        elif direction == "right":
             px = norm_step
+        elif direction == "right":
+            px = -norm_step
         elif direction == "up":
-            py = norm_step
-        elif direction == "down":
             py = -norm_step
+        elif direction == "down":
+            py = norm_step
         else:
             return {"ok": False, "error": f"Unbekannte Richtung: {direction}"}
 
