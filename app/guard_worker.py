@@ -106,26 +106,69 @@ class RoomGuardWorker:
 
         self.camera.set_ai_overlay_enabled(bool(guard_cfg.get("ai_overlay", True)))
         track_speed = float(guard_cfg.get("tracking_speed", 1.4))
+
+        # Compute motion mask on every frame so static objects (bottles, paintings, baskets) are never tracked as Unbekannt
+        thresh_mask, cur_gray, motion_ratio = self.face.compute_motion_mask(
+            frame_bgr, prev_gray=self._prev_motion_gray
+        )
+        self._prev_motion_gray = cur_gray
+
         detections = self.face.detect_and_embed(frame_bgr)
+
+        # Filter out static false-positive face detections (unless force_greet=True or matches a known person later)
+        if detections and not force_greet and thresh_mask is not None:
+            filtered_dets = []
+            for d in detections:
+                has_mot = self.face.has_motion_near_bbox(thresh_mask, frame_bgr.shape, d["bbox"])
+                if has_mot:
+                    filtered_dets.append(d)
+                else:
+                    # Keep only if it strongly matches an enrolled person
+                    mp, _ = self.face.match_person(
+                        d["embedding"], persons, threshold=float(guard_cfg.get("similarity_threshold", 0.38))
+                    )
+                    if mp is not None:
+                        filtered_dets.append(d)
+            detections = filtered_dets
+
         if not detections:
             body_bbox = None
             # Motion-contour detection + automatic 2.2x AI Digital-Zoom into moving person's head region
-            person_bbox, cur_gray = self.face.detect_largest_person_bbox(
-                frame_bgr, prev_gray=self._prev_motion_gray
+            person_bbox, _ = self.face.detect_largest_person_bbox(
+                frame_bgr, prev_gray=cur_gray if motion_ratio == 0.0 else None
             )
-            self._prev_motion_gray = cur_gray
-            body_bbox = person_bbox
-            if person_bbox is not None:
+            # Re-use already computed motion via thresh_mask when available
+            if thresh_mask is not None and 0.008 <= motion_ratio <= 0.40:
+                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 25))
+                dilated = cv2.dilate(thresh_mask, kernel, iterations=2)
+                contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                mh, mw = thresh_mask.shape[:2]
+                min_area = (mw * mh) * 0.015
+                best_rect = None
+                best_area = 0.0
+                for cnt in contours:
+                    rx, ry, rw, rh = cv2.boundingRect(cnt)
+                    area = float(rw * rh)
+                    if area >= min_area and area > best_area:
+                        best_area = area
+                        best_rect = (rx, ry, rw, rh)
+                if best_rect is not None:
+                    fh, fw = frame_bgr.shape[:2]
+                    sx, sy = fw / float(mw), fh / float(mh)
+                    rx, ry, rw, rh = best_rect
+                    body_bbox = [int(rx * sx), int(ry * sy), int(rw * sx), int(rh * sy)]
+
+            if body_bbox is not None:
                 self._last_person_seen_ts = datetime.now(timezone.utc).timestamp()
                 # Zoom in on the upper body to catch distant/small faces
                 detections = self.face.detect_faces_in_crop(
-                    frame_bgr, person_bbox, upscale=2.2, upper_body_only=True
+                    frame_bgr, body_bbox, upscale=2.2, upper_body_only=True
                 )
                 if guard_cfg.get("auto_tracking", True):
                     target_box = (
                         max(detections, key=lambda d: d["bbox"][2] * d["bbox"][3])["bbox"]
                         if detections
-                        else person_bbox
+                        else body_bbox
                     )
                     moved = self.camera.track_face_in_frame(
                         camera_cfg, target_box, frame_bgr.shape, speed_multiplier=track_speed
@@ -138,7 +181,6 @@ class RoomGuardWorker:
                 self.camera.update_ai_overlay(frame_bgr.shape, [], body_bbox=body_bbox)
                 return []
 
-        self._prev_motion_gray = None
         self._last_person_seen_ts = datetime.now(timezone.utc).timestamp()
 
         # Auto-Tracking: follow the largest detected face smoothly via ONVIF PTZ
@@ -149,6 +191,7 @@ class RoomGuardWorker:
             )
             if moved:
                 self._at_home_preset = False
+                self._prev_motion_gray = None
 
         threshold = float(guard_cfg.get("similarity_threshold", 0.38))
         default_cooldown = int(guard_cfg.get("cooldown_minutes", 120))

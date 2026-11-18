@@ -259,6 +259,55 @@ class LocalFaceService:
         inv = 1.0 / scale
         return [int(rx * inv), int(ry * inv), int(rw * inv), int(rh * inv)], cur_gray
 
+    @staticmethod
+    def compute_motion_mask(
+        image_bgr: np.ndarray,
+        prev_gray: Optional[np.ndarray] = None,
+    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], float]:
+        """Compute downscaled binary motion mask and overall motion ratio between frames."""
+        if image_bgr is None or image_bgr.size == 0:
+            return None, prev_gray, 0.0
+        h, w = image_bgr.shape[:2]
+        target_w = 480
+        scale = target_w / float(w)
+        small_h = max(1, int(h * scale))
+        small = cv2.resize(image_bgr, (target_w, small_h), interpolation=cv2.INTER_AREA)
+        cur_gray = cv2.GaussianBlur(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY), (11, 11), 0)
+        if prev_gray is None or prev_gray.shape != cur_gray.shape:
+            return None, cur_gray, 0.0
+        diff = cv2.absdiff(prev_gray, cur_gray)
+        _, thresh = cv2.threshold(diff, 22, 255, cv2.THRESH_BINARY)
+        ratio = float(np.count_nonzero(thresh)) / float(thresh.size)
+        return thresh, cur_gray, ratio
+
+    @staticmethod
+    def has_motion_near_bbox(
+        thresh_mask: Optional[np.ndarray],
+        image_shape: tuple,
+        bbox: List[int],
+        min_roi_ratio: float = 0.015,
+    ) -> bool:
+        """Check whether real pixel motion occurred inside/around a full-frame bbox."""
+        if thresh_mask is None or len(bbox) < 4:
+            return False
+        fh, fw = image_shape[:2]
+        mh, mw = thresh_mask.shape[:2]
+        if fw <= 0 or fh <= 0:
+            return False
+        sx = mw / float(fw)
+        sy = mh / float(fh)
+        bx, by, bw, bh = bbox[:4]
+        pad_x = int(bw * 0.4)
+        pad_y = int(bh * 0.4)
+        x1 = max(0, int((bx - pad_x) * sx))
+        y1 = max(0, int((by - pad_y) * sy))
+        x2 = min(mw, int((bx + bw + pad_x) * sx))
+        y2 = min(mh, int((by + bh + pad_y) * sy))
+        if x2 <= x1 or y2 <= y1:
+            return False
+        roi = thresh_mask[y1:y2, x1:x2]
+        return (float(np.count_nonzero(roi)) / float(roi.size)) >= min_roi_ratio
+
     def detect_faces_in_crop(
         self,
         image_bgr: np.ndarray,
