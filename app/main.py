@@ -81,6 +81,7 @@ class GuardSettingsUpdate(BaseModel):
     enabled: Optional[bool] = None
     detection_interval_sec: Optional[float] = None
     cooldown_minutes: Optional[int] = None
+    unknown_cooldown_minutes: Optional[int] = None
     similarity_threshold: Optional[float] = None
     default_greeting: Optional[str] = None
     unknown_greeting: Optional[str] = None

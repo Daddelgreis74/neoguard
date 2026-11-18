@@ -29,6 +29,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "enabled": True,
         "detection_interval_sec": 2.0,
         "cooldown_minutes": 120,
+        "unknown_cooldown_minutes": 2,
         "similarity_threshold": 0.38,
         "default_greeting": "{greeting_time}, {name}! Willkommen zurück.",
         "unknown_greeting": "{greeting_time}! Bitte beachte, dass dieser Raum überwacht wird.",

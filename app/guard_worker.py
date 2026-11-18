@@ -254,9 +254,10 @@ class RoomGuardWorker:
                 )
 
                 greet_unknown = bool(guard_cfg.get("greet_unknown", False))
+                unknown_cooldown = int(guard_cfg.get("unknown_cooldown_minutes", 2))
                 now_ts = datetime.now(timezone.utc).timestamp()
                 can_greet_unknown = force_greet or (
-                    greet_unknown and (now_ts - self._last_unknown_greet_ts) >= (default_cooldown * 60)
+                    greet_unknown and (now_ts - self._last_unknown_greet_ts) >= (unknown_cooldown * 60)
                 )
                 audio_sent = False
                 greeting_text = format_greeting_template(
