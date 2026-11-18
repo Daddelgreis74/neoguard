@@ -105,6 +105,16 @@ class RoomGuardWorker:
 
         detections = self.face.detect_and_embed(frame_bgr)
         if not detections:
+            # Fallback: track walking/sideways/back-turned person via HOG body detector
+            if guard_cfg.get("auto_tracking", True):
+                person_bbox = self.face.detect_largest_person_bbox(frame_bgr)
+                if person_bbox is not None:
+                    self._last_person_seen_ts = datetime.now(timezone.utc).timestamp()
+                    moved = self.camera.track_face_in_frame(
+                        camera_cfg, person_bbox, frame_bgr.shape
+                    )
+                    if moved:
+                        self._at_home_preset = False
             return []
 
         self._last_person_seen_ts = datetime.now(timezone.utc).timestamp()
@@ -282,7 +292,7 @@ class RoomGuardWorker:
                     guard_cfg.get("active_hours_end", "23:00"),
                 ):
                     if guard_cfg.get("auto_tracking", True):
-                        interval = min(interval, 0.8)
+                        interval = min(interval, 0.4)
 
                     frame = await asyncio.to_thread(
                         self.camera.capture_frame,

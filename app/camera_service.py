@@ -405,11 +405,11 @@ class TapoCameraService:
         frame_shape: tuple,
     ) -> bool:
         """
-        Gently pan/tilt the Tapo C200 to keep a detected face centered in the frame.
+        Pan/tilt the Tapo C200 to keep a detected face or person centered in the frame.
         Returns True if a tracking movement was performed.
         """
         now = time.time()
-        if (now - self._last_track_ts) < 0.8:
+        if (now - self._last_track_ts) < 0.35:
             return False
 
         h, w = frame_shape[:2]
@@ -424,15 +424,13 @@ class TapoCameraService:
         err_x = (face_cx - (w / 2.0)) / float(w)
         err_y = (face_cy - (h / 2.0)) / float(h)
 
-        # Deadzone ±16% horizontally, ±18% vertically to avoid motor jitter
+        # Deadzone ±10% horizontally, ±14% vertically
         vx = 0.0
         vy = 0.0
-        if abs(err_x) > 0.16:
-            # err_x < 0 (face on left) -> pan left (negative vx); err_x > 0 (face on right) -> positive vx
-            vx = max(-0.55, min(0.55, err_x * 1.1))
-        if abs(err_y) > 0.18:
-            # err_y < 0 (face near top) -> tilt up (positive vy); err_y > 0 (face near bottom) -> negative vy
-            vy = max(-0.45, min(0.45, -err_y * 0.9))
+        if abs(err_x) > 0.10:
+            vx = max(-0.75, min(0.75, err_x * 1.5))
+        if abs(err_y) > 0.14:
+            vy = max(-0.55, min(0.55, -err_y * 1.1))
 
         if vx == 0.0 and vy == 0.0:
             return False
@@ -450,7 +448,7 @@ class TapoCameraService:
 </tptz:ContinuousMove>""",
             )
             if resp.status_code == 200 and "Fault" not in resp.text:
-                pulse_sec = min(0.32, max(0.12, max(abs(err_x), abs(err_y)) * 0.65))
+                pulse_sec = min(0.55, max(0.18, max(abs(err_x), abs(err_y)) * 0.95))
                 time.sleep(pulse_sec)
                 self.stop_ptz(camera_cfg)
                 return True

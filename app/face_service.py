@@ -29,6 +29,8 @@ class LocalFaceService:
         self._detector = None
         self._recognizer = None
         self._haar_cascade = None
+        self._hog = cv2.HOGDescriptor()
+        self._hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
         self.engine_name = "opencv-fallback"
         self._init_engines()
 
@@ -192,3 +194,40 @@ class LocalFaceService:
         if best_person is not None and best_score >= threshold:
             return best_person, round(best_score, 3)
         return None, round(max(0.0, best_score), 3)
+
+    def detect_largest_person_bbox(self, image_bgr: np.ndarray) -> Optional[List[int]]:
+        """
+        Fallback full-body / upper-body person detector using OpenCV HOG.
+        Works even when a person is walking sideways or away from the camera.
+        Returns [x, y, w, h] in original image coordinates, or None.
+        """
+        if image_bgr is None or image_bgr.size == 0:
+            return None
+        h, w = image_bgr.shape[:2]
+        target_w = 480
+        scale = target_w / float(w)
+        small = cv2.resize(image_bgr, (target_w, max(1, int(h * scale))), interpolation=cv2.INTER_AREA)
+        rects, weights = self._hog.detectMultiScale(
+            small,
+            winStride=(8, 8),
+            padding=(8, 8),
+            scale=1.08,
+        )
+        if len(rects) == 0:
+            return None
+        # Pick detection with highest area * weight
+        best_idx = 0
+        best_val = -1.0
+        for idx, (rx, ry, rw, rh) in enumerate(rects):
+            wt = float(weights[idx]) if idx < len(weights) else 1.0
+            if wt < 0.35:
+                continue
+            val = (rw * rh) * wt
+            if val > best_val:
+                best_val = val
+                best_idx = idx
+        if best_val < 0:
+            return None
+        rx, ry, rw, rh = rects[best_idx]
+        inv = 1.0 / scale
+        return [int(rx * inv), int(ry * inv), int(rw * inv), int(rh * inv)]
