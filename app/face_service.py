@@ -17,20 +17,25 @@ SFACE_URL = (
     "https://github.com/opencv/opencv_zoo/raw/main/models/"
     "face_recognition_sface/face_recognition_sface_2021dec.onnx"
 )
+YOLOV8N_URL = "https://huggingface.co/Kalray/yolov8/resolve/main/yolov8n.onnx"
 
 
 class LocalFaceService:
-    """100% Local Face Detection and Recognition using OpenCV YuNet + SFace ONNX (with Haar fallback)."""
+    """100% Local AI Person (YOLOv8n) + Face Detection & Recognition (YuNet + SFace ONNX)."""
 
     def __init__(self, models_dir: Path) -> None:
         self.vision_dir = models_dir / "vision"
         self.vision_dir.mkdir(parents=True, exist_ok=True)
         self.yunet_path = self.vision_dir / "face_detection_yunet_2023mar.onnx"
         self.sface_path = self.vision_dir / "face_recognition_sface_2021dec.onnx"
+        self.yolo_path = self.vision_dir / "yolov8n.onnx"
         self._detector = None
         self._recognizer = None
+        self._yolo_session = None
+        self._yolo_input_name = "images"
         self._haar_cascade = None
         self._infer_lock = threading.Lock()
+        self._yolo_lock = threading.Lock()
         self.engine_name = "opencv-fallback"
         self._init_engines()
 
@@ -43,6 +48,9 @@ class LocalFaceService:
             if not self.sface_path.exists():
                 logger.info("Downloading SFace ONNX face recognizer (~37 MB)...")
                 urllib.request.urlretrieve(SFACE_URL, str(self.sface_path))
+            if not self.yolo_path.exists():
+                logger.info("Downloading YOLOv8n ONNX person detector (~13 MB)...")
+                urllib.request.urlretrieve(YOLOV8N_URL, str(self.yolo_path))
             self._init_engines()
             return self.engine_name == "yunet+sface-onnx"
         except Exception as exc:
@@ -50,21 +58,37 @@ class LocalFaceService:
             return False
 
     def _init_engines(self) -> None:
+        if self.yolo_path.exists():
+            try:
+                import onnxruntime as ort
+
+                self._yolo_session = ort.InferenceSession(
+                    str(self.yolo_path), providers=["CPUExecutionProvider"]
+                )
+                self._yolo_input_name = self._yolo_session.get_inputs()[0].name
+                logger.info("Initialized local YOLOv8n ONNX person detector.")
+            except Exception as exc:
+                logger.warning("Failed to initialize YOLOv8n ONNX: %s", exc)
+
         if self.yunet_path.exists() and self.sface_path.exists():
             try:
                 self._detector = cv2.FaceDetectorYN.create(
                     str(self.yunet_path),
                     "",
                     (320, 320),
-                    score_threshold=0.70,
+                    score_threshold=0.65,
                     nms_threshold=0.3,
                     top_k=5000,
                 )
                 self._recognizer = cv2.FaceRecognizerSF.create(
                     str(self.sface_path), ""
                 )
-                self.engine_name = "yunet+sface-onnx"
-                logger.info("Initialized local YuNet + SFace ONNX engine.")
+                self.engine_name = (
+                    "yolov8n+yunet+sface-onnx"
+                    if self._yolo_session is not None
+                    else "yunet+sface-onnx"
+                )
+                logger.info("Initialized local %s engine.", self.engine_name)
                 return
             except Exception as exc:
                 logger.warning("Failed to initialize ONNX face models: %s", exc)
@@ -307,6 +331,77 @@ class LocalFaceService:
             return False
         roi = thresh_mask[y1:y2, x1:x2]
         return (float(np.count_nonzero(roi)) / float(roi.size)) >= min_roi_ratio
+
+    def detect_people_yolo(
+        self,
+        image_bgr: np.ndarray,
+        conf_threshold: float = 0.45,
+        nms_threshold: float = 0.45,
+    ) -> Optional[List[Dict[str, Any]]]:
+        """
+        Stage 1 neural person detector using local YOLOv8n ONNX (COCO class 0 = person).
+        Returns list of {"bbox": [x, y, w, h], "score": float} sorted by area desc,
+        or None if YOLOv8n is not loaded.
+        """
+        if self._yolo_session is None:
+            return None
+        if image_bgr is None or image_bgr.size == 0:
+            return []
+
+        ih, iw = image_bgr.shape[:2]
+        input_size = 640
+        scale = min(input_size / float(iw), input_size / float(ih))
+        nw, nh = int(round(iw * scale)), int(round(ih * scale))
+        resized = cv2.resize(image_bgr, (nw, nh), interpolation=cv2.INTER_LINEAR)
+
+        canvas = np.full((input_size, input_size, 3), 114, dtype=np.uint8)
+        pad_x = (input_size - nw) // 2
+        pad_y = (input_size - nh) // 2
+        canvas[pad_y : pad_y + nh, pad_x : pad_x + nw] = resized
+
+        rgb = cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+        blob = np.transpose(rgb, (2, 0, 1))[np.newaxis, ...]
+
+        with self._yolo_lock:
+            outputs = self._yolo_session.run(None, {self._yolo_input_name: blob})
+
+        # Output shape: (1, 84, 8400) -> transpose to (8400, 84)
+        preds = np.squeeze(outputs[0]).T
+        person_scores = preds[:, 4]  # class 0 = person
+        mask = person_scores >= conf_threshold
+        filtered = preds[mask]
+        scores = person_scores[mask]
+
+        if len(filtered) == 0:
+            return []
+
+        boxes = []
+        confidences = []
+        for row, sc in zip(filtered, scores):
+            cx, cy, bw, bh = row[0], row[1], row[2], row[3]
+            x1 = (cx - bw / 2.0 - pad_x) / scale
+            y1 = (cy - bh / 2.0 - pad_y) / scale
+            w_orig = bw / scale
+            h_orig = bh / scale
+            x1_c = max(0, min(iw - 1, int(x1)))
+            y1_c = max(0, min(ih - 1, int(y1)))
+            w_c = max(1, min(iw - x1_c, int(w_orig)))
+            h_c = max(1, min(ih - y1_c, int(h_orig)))
+            boxes.append([x1_c, y1_c, w_c, h_c])
+            confidences.append(float(sc))
+
+        indices = cv2.dnn.NMSBoxes(boxes, confidences, conf_threshold, nms_threshold)
+        results: List[Dict[str, Any]] = []
+        if len(indices) > 0:
+            for idx in np.array(indices).flatten():
+                results.append(
+                    {
+                        "bbox": boxes[int(idx)],
+                        "score": round(confidences[int(idx)], 3),
+                    }
+                )
+        results.sort(key=lambda r: r["bbox"][2] * r["bbox"][3], reverse=True)
+        return results
 
     def detect_faces_in_crop(
         self,

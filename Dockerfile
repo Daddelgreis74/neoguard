@@ -32,6 +32,8 @@ RUN ARCH=$(dpkg --print-architecture) && \
       -o /opt/models/vision/face_detection_yunet_2023mar.onnx && \
     curl -fsSL "https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx" \
       -o /opt/models/vision/face_recognition_sface_2021dec.onnx && \
+    curl -fsSL "https://huggingface.co/Kalray/yolov8/resolve/main/yolov8n.onnx" \
+      -o /opt/models/vision/yolov8n.onnx && \
     curl -fsSL "https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx.json" \
       -o /opt/models/tts/de_DE-thorsten-medium.onnx.json && \
     curl -fsSL "https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx" \

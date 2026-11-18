@@ -302,8 +302,8 @@ class TapoCameraService:
         body = data.get("body")
         if body and len(body) >= 4:
             bx, by, bw, bh = int(body[0] * sx), int(body[1] * sy), int(body[2] * sx), int(body[3] * sy)
-            cv2.rectangle(out, (bx, by), (bx + bw, by + bh), (248, 189, 56), 1, cv2.LINE_AA)
-            cv2.putText(out, "Person (Bewegung)", (bx, max(18, by - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (248, 189, 56), 1, cv2.LINE_AA)
+            cv2.rectangle(out, (bx, by), (bx + bw, by + bh), (248, 189, 56), 2, cv2.LINE_AA)
+            cv2.putText(out, "Person (YOLOv8n)", (bx, max(18, by - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (248, 189, 56), 2, cv2.LINE_AA)
 
         # 3. YuNet faces + 5-point facial landmark mesh + recognition label
         for face in data.get("faces", []):
