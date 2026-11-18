@@ -77,6 +77,7 @@ class RoomGuardWorker:
         self._last_person_seen_ts: float = 0.0
         self._at_home_preset: bool = True
         self._prev_motion_gray: Optional[np.ndarray] = None
+        self._unknown_streak: int = 0
 
     def check_cooldown_expired(self, last_greeted_iso: Optional[str], cooldown_minutes: int) -> bool:
         if not last_greeted_iso or cooldown_minutes <= 0:
@@ -114,6 +115,7 @@ class RoomGuardWorker:
 
         if yolo_people is not None:
             if not yolo_people and not force_greet:
+                self._unknown_streak = 0
                 self.camera.update_ai_overlay(frame_bgr.shape, [], body_bbox=None)
                 return []
 
@@ -203,6 +205,7 @@ class RoomGuardWorker:
                         bx, by, bw, bh = det["bbox"]
 
             if matched_person is not None:
+                self._unknown_streak = 0
                 p_id = matched_person["id"]
                 p_name = matched_person["name"]
                 p_cooldown = matched_person.get("cooldown_minutes")
@@ -298,11 +301,14 @@ class RoomGuardWorker:
                     cv2.LINE_AA,
                 )
 
+                self._unknown_streak += 1
                 greet_unknown = bool(guard_cfg.get("greet_unknown", False))
                 unknown_cooldown = int(guard_cfg.get("unknown_cooldown_minutes", 2))
                 now_ts = datetime.now(timezone.utc).timestamp()
                 can_greet_unknown = force_greet or (
-                    greet_unknown and (now_ts - self._last_unknown_greet_ts) >= (unknown_cooldown * 60)
+                    greet_unknown
+                    and self._unknown_streak >= 2
+                    and (now_ts - self._last_unknown_greet_ts) >= (unknown_cooldown * 60)
                 )
                 audio_sent = False
                 greeting_text = format_greeting_template(
