@@ -74,6 +74,8 @@ class RoomGuardWorker:
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._last_unknown_greet_ts: float = 0.0
+        self._last_person_seen_ts: float = 0.0
+        self._at_home_preset: bool = True
 
     def check_cooldown_expired(self, last_greeted_iso: Optional[str], cooldown_minutes: int) -> bool:
         if not last_greeted_iso or cooldown_minutes <= 0:
@@ -104,6 +106,17 @@ class RoomGuardWorker:
         detections = self.face.detect_and_embed(frame_bgr)
         if not detections:
             return []
+
+        self._last_person_seen_ts = datetime.now(timezone.utc).timestamp()
+
+        # Auto-Tracking: follow the largest detected face smoothly via ONVIF PTZ
+        if guard_cfg.get("auto_tracking", True):
+            primary_det = max(detections, key=lambda d: d["bbox"][2] * d["bbox"][3])
+            moved = self.camera.track_face_in_frame(
+                camera_cfg, primary_det["bbox"], frame_bgr.shape
+            )
+            if moved:
+                self._at_home_preset = False
 
         threshold = float(guard_cfg.get("similarity_threshold", 0.38))
         default_cooldown = int(guard_cfg.get("cooldown_minutes", 120))
@@ -268,6 +281,9 @@ class RoomGuardWorker:
                     guard_cfg.get("active_hours_start", "06:00"),
                     guard_cfg.get("active_hours_end", "23:00"),
                 ):
+                    if guard_cfg.get("auto_tracking", True):
+                        interval = min(interval, 0.8)
+
                     frame = await asyncio.to_thread(
                         self.camera.capture_frame,
                         camera_cfg,
@@ -275,6 +291,19 @@ class RoomGuardWorker:
                     )
                     if frame is not None:
                         await asyncio.to_thread(self.analyze_and_greet_frame, frame, False)
+
+                    # Return to Preset 1 (home/door) after no person seen for configured delay
+                    if (
+                        guard_cfg.get("auto_tracking", True)
+                        and guard_cfg.get("tracking_return_home", True)
+                        and not self._at_home_preset
+                        and self._last_person_seen_ts > 0
+                    ):
+                        idle_sec = datetime.now(timezone.utc).timestamp() - self._last_person_seen_ts
+                        home_delay = float(guard_cfg.get("tracking_home_delay_sec", 20))
+                        if idle_sec >= home_delay:
+                            await asyncio.to_thread(self.camera.goto_preset, camera_cfg, "1")
+                            self._at_home_preset = True
             except Exception as exc:
                 logger.debug("Guard loop iteration warning: %s", exc)
 

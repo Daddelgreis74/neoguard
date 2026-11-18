@@ -93,6 +93,14 @@
       document.getElementById("cfgUnknownGreeting").value = guard.unknown_greeting || "";
       document.getElementById("cfgAutoPrivacy").checked = Boolean(guard.auto_privacy_after_greeting);
       document.getElementById("cfgGreetUnknown").checked = Boolean(guard.greet_unknown);
+      const autoTrack = guard.auto_tracking !== false;
+      document.getElementById("cfgAutoTracking").checked = autoTrack;
+      document.getElementById("cfgTrackingReturnHome").checked = guard.tracking_return_home !== false;
+      const trackSpan = document.getElementById("autoTrackState");
+      if (trackSpan) {
+        trackSpan.textContent = autoTrack ? "AN" : "AUS";
+        trackSpan.className = autoTrack ? "text-success fw-bold" : "text-secondary";
+      }
 
       renderPersons(data.persons || []);
     } catch (err) {
@@ -272,6 +280,24 @@
     });
   });
 
+  // Auto-Tracking Quick Toggle
+  document.getElementById("btnAutoTrackToggle")?.addEventListener("click", async () => {
+    const currentlyOn = currentConfig?.guard?.auto_tracking !== false;
+    const nextVal = !currentlyOn;
+    const res = await fetch("/api/config/guard", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ auto_tracking: nextVal }),
+    });
+    if (res.ok) {
+      showStatus(
+        nextVal ? "KI-Personen-Verfolgung (Auto-Tracking) aktiviert." : "Auto-Tracking pausiert.",
+        "info"
+      );
+      loadConfig();
+    }
+  });
+
   // Privacy Toggle
   document.getElementById("btnPrivacyToggle")?.addEventListener("click", async () => {
     privacyEnabled = !privacyEnabled;
@@ -430,6 +456,8 @@
       unknown_greeting: document.getElementById("cfgUnknownGreeting").value.trim(),
       auto_privacy_after_greeting: document.getElementById("cfgAutoPrivacy").checked,
       greet_unknown: document.getElementById("cfgGreetUnknown").checked,
+      auto_tracking: document.getElementById("cfgAutoTracking").checked,
+      tracking_return_home: document.getElementById("cfgTrackingReturnHome").checked,
     };
 
     await fetch("/api/config/camera", {

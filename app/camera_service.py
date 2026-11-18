@@ -33,6 +33,7 @@ class TapoCameraService:
         self._reader_stop = threading.Event()
         self._reader_cfg: Optional[Dict[str, Any]] = None
         self._active_mjpeg_clients: int = 0
+        self._last_track_ts: float = 0.0
 
     @staticmethod
     def _cfg_signature(camera_cfg: Dict[str, Any]) -> str:
@@ -396,6 +397,66 @@ class TapoCameraService:
         except Exception as exc:
             logger.debug("ONVIF Stop failed: %s", exc)
         return {"ok": False, "error": "ONVIF Stop fehlgeschlagen."}
+
+    def track_face_in_frame(
+        self,
+        camera_cfg: Dict[str, Any],
+        bbox: list,
+        frame_shape: tuple,
+    ) -> bool:
+        """
+        Gently pan/tilt the Tapo C200 to keep a detected face centered in the frame.
+        Returns True if a tracking movement was performed.
+        """
+        now = time.time()
+        if (now - self._last_track_ts) < 0.8:
+            return False
+
+        h, w = frame_shape[:2]
+        if w <= 0 or h <= 0 or len(bbox) < 4:
+            return False
+
+        bx, by, bw, bh = bbox[:4]
+        face_cx = bx + bw / 2.0
+        face_cy = by + bh / 2.0
+
+        # Normalized offset from center in [-0.5, +0.5]
+        err_x = (face_cx - (w / 2.0)) / float(w)
+        err_y = (face_cy - (h / 2.0)) / float(h)
+
+        # Deadzone ±16% horizontally, ±18% vertically to avoid motor jitter
+        vx = 0.0
+        vy = 0.0
+        if abs(err_x) > 0.16:
+            # err_x < 0 (face on left) -> pan left (negative vx); err_x > 0 (face on right) -> positive vx
+            vx = max(-0.55, min(0.55, err_x * 1.1))
+        if abs(err_y) > 0.18:
+            # err_y < 0 (face near top) -> tilt up (positive vy); err_y > 0 (face near bottom) -> negative vy
+            vy = max(-0.45, min(0.45, -err_y * 0.9))
+
+        if vx == 0.0 and vy == 0.0:
+            return False
+
+        self._last_track_ts = now
+        try:
+            resp = self._onvif_request(
+                camera_cfg,
+                "/onvif/ptz_service",
+                f"""<tptz:ContinuousMove>
+  <tptz:ProfileToken>profile_1</tptz:ProfileToken>
+  <tptz:Velocity>
+    <tt:PanTilt x="{vx:.3f}" y="{vy:.3f}"/>
+  </tptz:Velocity>
+</tptz:ContinuousMove>""",
+            )
+            if resp.status_code == 200 and "Fault" not in resp.text:
+                pulse_sec = min(0.32, max(0.12, max(abs(err_x), abs(err_y)) * 0.65))
+                time.sleep(pulse_sec)
+                self.stop_ptz(camera_cfg)
+                return True
+        except Exception as exc:
+            logger.debug("Auto-tracking pulse failed: %s", exc)
+        return False
 
     def set_privacy_mode(self, camera_cfg: Dict[str, Any], enabled: bool) -> Dict[str, Any]:
         """Toggle software/hardware privacy mode."""
