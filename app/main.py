@@ -202,6 +202,18 @@ def move_camera_ptz(payload: PTZRequest) -> Dict[str, Any]:
     return camera_service.move_ptz(raw_cfg["camera"], payload.direction, payload.step)
 
 
+@app.post("/api/camera/ptz/start")
+def start_camera_ptz(payload: PTZRequest) -> Dict[str, Any]:
+    raw_cfg = store.get_raw_config()
+    return camera_service.start_ptz_continuous(raw_cfg["camera"], payload.direction)
+
+
+@app.post("/api/camera/ptz/stop")
+def stop_camera_ptz() -> Dict[str, Any]:
+    raw_cfg = store.get_raw_config()
+    return camera_service.stop_ptz(raw_cfg["camera"])
+
+
 @app.post("/api/camera/privacy")
 def toggle_camera_privacy(payload: PrivacyRequest) -> Dict[str, Any]:
     raw_cfg = store.get_raw_config()

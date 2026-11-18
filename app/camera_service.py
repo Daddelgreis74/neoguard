@@ -29,6 +29,10 @@ class TapoCameraService:
         self._last_fail_ts: float = 0.0
         self._last_cfg_sig: str = ""
         self._privacy_enabled: bool = False
+        self._reader_thread: Optional[threading.Thread] = None
+        self._reader_stop = threading.Event()
+        self._reader_cfg: Optional[Dict[str, Any]] = None
+        self._active_mjpeg_clients: int = 0
 
     @staticmethod
     def _cfg_signature(camera_cfg: Dict[str, Any]) -> str:
@@ -96,15 +100,82 @@ class TapoCameraService:
             except Exception:
                 pass
 
+    def _ensure_reader_running(self, camera_cfg: Dict[str, Any]) -> None:
+        """Start or restart the persistent RTSP reader thread for smooth 15fps preview."""
+        if self._privacy_enabled:
+            return
+        if not (camera_cfg.get("host") and camera_cfg.get("rtsp_user") and camera_cfg.get("rtsp_pass")):
+            return
+
+        sig = self._cfg_signature(camera_cfg)
+        self._reader_cfg = dict(camera_cfg)
+        if self._reader_thread is not None and self._reader_thread.is_alive():
+            if sig == self._last_cfg_sig:
+                return
+            self._reader_stop.set()
+            self._reader_thread.join(timeout=1.5)
+
+        self._last_cfg_sig = sig
+        self._reader_stop.clear()
+        self._reader_thread = threading.Thread(target=self._rtsp_reader_loop, daemon=True)
+        self._reader_thread.start()
+
+    def _rtsp_reader_loop(self) -> None:
+        """Keep one persistent RTSP connection open so frames are always ready with minimal latency."""
+        cap = None
+        try:
+            while not self._reader_stop.is_set():
+                cfg = self._reader_cfg or {}
+                if self._privacy_enabled:
+                    if cap is not None:
+                        cap.release()
+                        cap = None
+                    time.sleep(0.5)
+                    continue
+
+                if cap is None or not cap.isOpened():
+                    rtsp_url = self.build_rtsp_url(cfg, stream=cfg.get("preview_stream", "stream2"))
+                    if not rtsp_url:
+                        time.sleep(1.0)
+                        continue
+                    cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    if not cap.isOpened():
+                        cap.release()
+                        cap = None
+                        self._last_fail_ts = time.time()
+                        time.sleep(10.0)
+                        continue
+
+                ok, frame = cap.read()
+                if ok and frame is not None and frame.size > 0:
+                    with self._frame_lock:
+                        self._last_frame = frame
+                        self._last_frame_ts = time.time()
+                        self._last_fail_ts = 0.0
+                else:
+                    cap.release()
+                    cap = None
+                    time.sleep(0.5)
+        finally:
+            if cap is not None:
+                cap.release()
+
     def capture_frame(
         self,
         camera_cfg: Dict[str, Any],
         stream: Optional[str] = None,
         ignore_backoff: bool = False,
     ) -> Optional[np.ndarray]:
-        """Capture a single BGR frame from the Tapo C200 RTSP stream with anti-lockout backoff."""
+        """Return latest frame from persistent RTSP reader or capture one-shot frame."""
         if self._privacy_enabled:
             return None
+
+        self._ensure_reader_running(camera_cfg)
+
+        with self._frame_lock:
+            if self._last_frame is not None and (time.time() - self._last_frame_ts) < 2.0:
+                return self._last_frame.copy()
 
         sig = self._cfg_signature(camera_cfg)
         if sig != self._last_cfg_sig:
@@ -138,13 +209,10 @@ class TapoCameraService:
 
     def get_snapshot_or_placeholder(self, camera_cfg: Dict[str, Any]) -> np.ndarray:
         """Return recent cached frame, fresh RTSP frame, or an informative status placeholder image."""
+        self._ensure_reader_running(camera_cfg)
         with self._frame_lock:
             if self._last_frame is not None and (time.time() - self._last_frame_ts) < 2.5:
                 return self._last_frame.copy()
-
-        frame = self.capture_frame(camera_cfg, stream=camera_cfg.get("preview_stream", "stream2"))
-        if frame is not None:
-            return frame
 
         return self.render_placeholder_frame(camera_cfg)
 
@@ -175,18 +243,36 @@ class TapoCameraService:
         return img
 
     def mjpeg_generator(self, camera_cfg_getter) -> Generator[bytes, None, None]:
-        """Yield MJPEG frames for live browser preview."""
+        """Yield smooth ~15 FPS MJPEG frames for live browser preview."""
+        last_sent_ts = 0.0
         while True:
             cfg = camera_cfg_getter()
-            frame = self.get_snapshot_or_placeholder(cfg)
-            ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-            if ok:
-                jpg_bytes = buf.tobytes()
-                yield (
-                    b"--frame\r\n"
-                    b"Content-Type: image/jpeg\r\n\r\n" + jpg_bytes + b"\r\n"
-                )
-            time.sleep(0.5)
+            self._ensure_reader_running(cfg)
+            frame = None
+            with self._frame_lock:
+                if self._last_frame is not None and (time.time() - self._last_frame_ts) < 2.5:
+                    if self._last_frame_ts > last_sent_ts:
+                        frame = self._last_frame.copy()
+                        last_sent_ts = self._last_frame_ts
+                else:
+                    frame = None
+
+            if frame is None and (time.time() - last_sent_ts) >= 0.8:
+                frame = self.render_placeholder_frame(cfg)
+                last_sent_ts = time.time()
+
+            if frame is not None:
+                h, w = frame.shape[:2]
+                if w > 960:
+                    scale = 960.0 / w
+                    frame = cv2.resize(frame, (960, int(h * scale)), interpolation=cv2.INTER_AREA)
+                ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 75])
+                if ok:
+                    yield (
+                        b"--frame\r\n"
+                        b"Content-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n"
+                    )
+            time.sleep(0.06)
 
     @staticmethod
     def _onvif_request(camera_cfg: Dict[str, Any], service_path: str, body_xml: str) -> httpx.Response:
@@ -261,6 +347,55 @@ class TapoCameraService:
             logger.debug("ONVIF PTZ move failed: %s", exc)
 
         return {"ok": False, "error": "ONVIF PTZ fehlgeschlagen. Prüfe Kamera-Konto.", "direction": direction}
+
+    def start_ptz_continuous(self, camera_cfg: Dict[str, Any], direction: str, speed: float = 0.45) -> Dict[str, Any]:
+        """Start smooth continuous Pan/Tilt movement via ONVIF ContinuousMove."""
+        vx, vy = 0.0, 0.0
+        if direction == "left":
+            vx = speed
+        elif direction == "right":
+            vx = -speed
+        elif direction == "up":
+            vy = -speed
+        elif direction == "down":
+            vy = speed
+        else:
+            return {"ok": False, "error": f"Unbekannte Richtung: {direction}"}
+
+        try:
+            resp = self._onvif_request(
+                camera_cfg,
+                "/onvif/ptz_service",
+                f"""<tptz:ContinuousMove>
+  <tptz:ProfileToken>profile_1</tptz:ProfileToken>
+  <tptz:Velocity>
+    <tt:PanTilt x="{vx}" y="{vy}"/>
+  </tptz:Velocity>
+</tptz:ContinuousMove>""",
+            )
+            if resp.status_code == 200 and "Fault" not in resp.text:
+                return {"ok": True, "method": "onvif-continuous", "direction": direction}
+        except Exception as exc:
+            logger.debug("ONVIF ContinuousMove failed: %s", exc)
+        return {"ok": False, "error": "ONVIF ContinuousMove fehlgeschlagen."}
+
+    def stop_ptz(self, camera_cfg: Dict[str, Any]) -> Dict[str, Any]:
+        """Stop continuous Pan/Tilt movement immediately via ONVIF Stop."""
+        try:
+            resp = self._onvif_request(
+                camera_cfg,
+                "/onvif/ptz_service",
+                """<tptz:Stop>
+  <tptz:ProfileToken>profile_1</tptz:ProfileToken>
+  <tptz:PanTilt>true</tptz:PanTilt>
+  <tptz:Zoom>false</tptz:Zoom>
+</tptz:Stop>""",
+            )
+            if resp.status_code == 200 and "Fault" not in resp.text:
+                return {"ok": True, "method": "onvif-stop"}
+        except Exception as exc:
+            logger.debug("ONVIF Stop failed: %s", exc)
+        return {"ok": False, "error": "ONVIF Stop fehlgeschlagen."}
 
     def set_privacy_mode(self, camera_cfg: Dict[str, Any], enabled: bool) -> Dict[str, Any]:
         """Toggle software/hardware privacy mode."""

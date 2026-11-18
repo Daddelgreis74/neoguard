@@ -209,23 +209,32 @@
 
   // -------------------- Event Listeners --------------------
 
-  // PTZ controls
+  // PTZ controls (smooth hold-to-move via ContinuousMove + Stop)
+  let ptzActive = false;
+  const stopPtz = async () => {
+    if (!ptzActive) return;
+    ptzActive = false;
+    try {
+      await fetch("/api/camera/ptz/stop", { method: "POST" });
+    } catch {}
+  };
+
   document.querySelectorAll("[data-ptz]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const direction = btn.getAttribute("data-ptz");
-      const res = await fetch("/api/camera/ptz", {
+    const direction = btn.getAttribute("data-ptz");
+    btn.addEventListener("pointerdown", async (e) => {
+      e.preventDefault();
+      ptzActive = true;
+      await fetch("/api/camera/ptz/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ direction }),
       });
-      const data = await res.json();
-      if (data.ok) {
-        showStatus(`Tapo C200 geschwenkt (${direction}).`, "success");
-      } else {
-        showStatus(`PTZ-Hinweis: ${data.error || "Nicht erreichbar"}`, "warning");
-      }
     });
+    btn.addEventListener("pointerup", stopPtz);
+    btn.addEventListener("pointerleave", stopPtz);
+    btn.addEventListener("pointercancel", stopPtz);
   });
+  window.addEventListener("pointerup", stopPtz);
 
   // Presets (Goto)
   document.querySelectorAll("[data-preset]").forEach((btn) => {
