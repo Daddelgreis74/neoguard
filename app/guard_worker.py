@@ -75,6 +75,7 @@ class RoomGuardWorker:
         self._task: Optional[asyncio.Task] = None
         self._last_unknown_greet_ts: float = 0.0
         self._last_person_seen_ts: float = 0.0
+        self._last_known_seen_ts: float = 0.0
         self._at_home_preset: bool = True
         self._prev_motion_gray: Optional[np.ndarray] = None
         self._unknown_streak: int = 0
@@ -206,6 +207,7 @@ class RoomGuardWorker:
 
             if matched_person is not None:
                 self._unknown_streak = 0
+                self._last_known_seen_ts = datetime.now(timezone.utc).timestamp()
                 p_id = matched_person["id"]
                 p_name = matched_person["name"]
                 p_cooldown = matched_person.get("cooldown_minutes")
@@ -305,8 +307,10 @@ class RoomGuardWorker:
                 greet_unknown = bool(guard_cfg.get("greet_unknown", False))
                 unknown_cooldown = int(guard_cfg.get("unknown_cooldown_minutes", 2))
                 now_ts = datetime.now(timezone.utc).timestamp()
+                recently_known = (now_ts - self._last_known_seen_ts) < 15.0
                 can_greet_unknown = force_greet or (
                     greet_unknown
+                    and not recently_known
                     and self._unknown_streak >= 2
                     and (now_ts - self._last_unknown_greet_ts) >= (unknown_cooldown * 60)
                 )
