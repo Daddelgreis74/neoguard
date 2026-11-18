@@ -101,6 +101,11 @@
         trackSpan.textContent = autoTrack ? "AN" : "AUS";
         trackSpan.className = autoTrack ? "text-success fw-bold" : "text-secondary";
       }
+      const speedVal = guard.tracking_speed ?? 1.4;
+      const slider = document.getElementById("trackingSpeedSlider");
+      const speedBadge = document.getElementById("trackingSpeedVal");
+      if (slider) slider.value = speedVal;
+      if (speedBadge) speedBadge.textContent = `${Number(speedVal).toFixed(1)}x`;
 
       renderPersons(data.persons || []);
     } catch (err) {
@@ -296,6 +301,36 @@
       );
       loadConfig();
     }
+  });
+
+  // Tracking Speed Scale (- ||||||||||||| +)
+  const saveTrackingSpeed = async (val) => {
+    const clamped = Math.max(0.3, Math.min(2.5, Math.round(val * 10) / 10));
+    const slider = document.getElementById("trackingSpeedSlider");
+    const badge = document.getElementById("trackingSpeedVal");
+    if (slider) slider.value = clamped;
+    if (badge) badge.textContent = `${clamped.toFixed(1)}x`;
+    await fetch("/api/config/guard", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tracking_speed: clamped }),
+    });
+  };
+
+  document.getElementById("trackingSpeedSlider")?.addEventListener("input", (e) => {
+    const badge = document.getElementById("trackingSpeedVal");
+    if (badge) badge.textContent = `${Number(e.target.value).toFixed(1)}x`;
+  });
+  document.getElementById("trackingSpeedSlider")?.addEventListener("change", (e) => {
+    saveTrackingSpeed(parseFloat(e.target.value));
+  });
+  document.getElementById("btnSpeedMinus")?.addEventListener("click", () => {
+    const cur = parseFloat(document.getElementById("trackingSpeedSlider")?.value || "1.4");
+    saveTrackingSpeed(cur - 0.2);
+  });
+  document.getElementById("btnSpeedPlus")?.addEventListener("click", () => {
+    const cur = parseFloat(document.getElementById("trackingSpeedSlider")?.value || "1.4");
+    saveTrackingSpeed(cur + 0.2);
   });
 
   // Privacy Toggle

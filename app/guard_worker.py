@@ -103,6 +103,7 @@ class RoomGuardWorker:
         guard_cfg = raw_cfg["guard"]
         persons = raw_cfg["persons"]
 
+        track_speed = float(guard_cfg.get("tracking_speed", 1.4))
         detections = self.face.detect_and_embed(frame_bgr)
         if not detections:
             # Fallback: track walking/sideways/back-turned person via HOG body detector
@@ -111,7 +112,7 @@ class RoomGuardWorker:
                 if person_bbox is not None:
                     self._last_person_seen_ts = datetime.now(timezone.utc).timestamp()
                     moved = self.camera.track_face_in_frame(
-                        camera_cfg, person_bbox, frame_bgr.shape
+                        camera_cfg, person_bbox, frame_bgr.shape, speed_multiplier=track_speed
                     )
                     if moved:
                         self._at_home_preset = False
@@ -123,7 +124,7 @@ class RoomGuardWorker:
         if guard_cfg.get("auto_tracking", True):
             primary_det = max(detections, key=lambda d: d["bbox"][2] * d["bbox"][3])
             moved = self.camera.track_face_in_frame(
-                camera_cfg, primary_det["bbox"], frame_bgr.shape
+                camera_cfg, primary_det["bbox"], frame_bgr.shape, speed_multiplier=track_speed
             )
             if moved:
                 self._at_home_preset = False

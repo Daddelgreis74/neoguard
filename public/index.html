@@ -119,8 +119,25 @@
                     <button class="btn btn-glass btn-sm px-3" data-save-preset="3" title="Aktuelle Kameraposition auf Platz 3 speichern"><i class="fa-solid fa-floppy-disk text-success"></i></button>
                   </div>
                 </div>
-                <div class="small text-secondary">
+                <div class="small text-secondary mb-3">
                   <i class="fa-solid fa-circle-info me-1"></i>Kamera per Steuerkreuz ausrichten → rechts auf <i class="fa-solid fa-floppy-disk text-success"></i> klicken, um die Position fest in der Tapo C200 zu speichern.
+                </div>
+
+                <!-- Tracking Speed Scale (- ||||||||||||| +) -->
+                <div class="pt-2 border-top border-secondary border-opacity-25">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="small fw-semibold"><i class="fa-solid fa-gauge-high text-info me-1"></i>Tracking-Tempo</span>
+                    <span class="badge bg-info bg-opacity-25 text-info" id="trackingSpeedVal">1.4x</span>
+                  </div>
+                  <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnSpeedMinus" title="Langsamer">
+                      <i class="fa-solid fa-minus"></i>
+                    </button>
+                    <input type="range" class="form-range flex-grow-1" id="trackingSpeedSlider" min="0.3" max="2.5" step="0.1" value="1.4">
+                    <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnSpeedPlus" title="Schneller">
+                      <i class="fa-solid fa-plus"></i>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

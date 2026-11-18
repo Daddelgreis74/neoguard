@@ -89,6 +89,7 @@ class GuardSettingsUpdate(BaseModel):
     active_hours_end: Optional[str] = None
     auto_privacy_after_greeting: Optional[bool] = None
     auto_tracking: Optional[bool] = None
+    tracking_speed: Optional[float] = None
     tracking_return_home: Optional[bool] = None
     tracking_home_delay_sec: Optional[int] = None
     tts_voice: Optional[str] = None
