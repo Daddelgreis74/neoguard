@@ -145,6 +145,7 @@
               <div>
                 <span class="fw-bold">${escapeHtml(p.name)}</span>
                 <span class="badge bg-info bg-opacity-25 text-info ms-2">${p.photo_count || 0} Fotos</span>
+                ${p.enabled === false ? '<span class="badge bg-secondary ms-1">Pausiert</span>' : ""}
                 <div class="small text-secondary mt-1">
                   <i class="fa-solid fa-comment-dots me-1"></i>${escapeHtml(p.greeting || "Standard-Begrüßung")}
                 </div>
@@ -152,9 +153,14 @@
                   Zuletzt begrüßt: ${formatTime(p.last_greeted)} · Cooldown: ${p.cooldown_minutes ?? 120} Min.
                 </div>
               </div>
-              <button class="btn btn-glass btn-sm text-danger" data-delete-person="${escapeHtml(p.id)}" title="Person löschen">
-                <i class="fa-solid fa-trash"></i>
-              </button>
+              <div class="d-flex gap-1">
+                <button class="btn btn-glass btn-sm text-info" data-edit-person="${escapeHtml(p.id)}" title="Person bearbeiten">
+                  <i class="fa-solid fa-pen"></i>
+                </button>
+                <button class="btn btn-glass btn-sm text-danger" data-delete-person="${escapeHtml(p.id)}" title="Person löschen">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
             </div>
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2 pt-2 border-top border-secondary border-opacity-25">
               <div class="d-flex gap-2 align-items-center">
@@ -501,8 +507,47 @@
     }
   });
 
-  // Delegated Person actions (Delete, Capture, Upload)
+  // Edit Person Form Submit
+  document.getElementById("editPersonForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const id = document.getElementById("editPersonId").value;
+    const name = document.getElementById("editPersonName").value.trim();
+    const greeting = document.getElementById("editPersonGreeting").value.trim();
+    const cooldownVal = document.getElementById("editPersonCooldown").value;
+    const cooldown_minutes = cooldownVal === "" ? 120 : parseInt(cooldownVal, 10);
+    const enabled = document.getElementById("editPersonEnabled").checked;
+
+    const res = await fetch(`/api/persons/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, greeting, cooldown_minutes, enabled }),
+    });
+    if (res.ok) {
+      bootstrap.Modal.getInstance(document.getElementById("editPersonModal"))?.hide();
+      showStatus(`Änderungen für "${name}" gespeichert!`, "success");
+      loadConfig();
+    } else {
+      showStatus("Fehler beim Speichern der Person.", "danger");
+    }
+  });
+
+  // Delegated Person actions (Edit, Delete, Capture, Upload)
   document.getElementById("personsList")?.addEventListener("click", async (e) => {
+    const editBtn = e.target.closest("[data-edit-person]");
+    if (editBtn) {
+      const id = editBtn.getAttribute("data-edit-person");
+      const person = (currentConfig?.persons || []).find((p) => p.id === id);
+      if (person) {
+        document.getElementById("editPersonId").value = person.id;
+        document.getElementById("editPersonName").value = person.name || "";
+        document.getElementById("editPersonGreeting").value = person.greeting || "";
+        document.getElementById("editPersonCooldown").value = person.cooldown_minutes ?? 120;
+        document.getElementById("editPersonEnabled").checked = person.enabled !== false;
+        new bootstrap.Modal(document.getElementById("editPersonModal")).show();
+      }
+      return;
+    }
+
     const delBtn = e.target.closest("[data-delete-person]");
     if (delBtn) {
       const id = delBtn.getAttribute("data-delete-person");

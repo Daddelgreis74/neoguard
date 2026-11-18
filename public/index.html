@@ -257,6 +257,44 @@
     </div>
   </div>
 
+  <!-- MODAL: Edit Person -->
+  <div class="modal fade" id="editPersonModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content glass-panel border-0 p-2" style="background: var(--glass-modal-bg);">
+        <div class="modal-header border-0">
+          <h5 class="modal-title fw-bold"><i class="fa-solid fa-user-pen text-info me-2"></i>Person bearbeiten</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="editPersonForm">
+          <input type="hidden" id="editPersonId">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Name der Person</label>
+              <input type="text" class="form-control" id="editPersonName" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Individueller Begrüßungstext</label>
+              <input type="text" class="form-control" id="editPersonGreeting" placeholder="{greeting_time}, {name}! Schön dich zu sehen.">
+              <div class="form-text small">Platzhalter: <code>{name}</code>, <code>{greeting_time}</code>, <code>{time}</code></div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Begrüßungs-Cooldown (Minuten)</label>
+              <input type="number" class="form-control" id="editPersonCooldown" min="0" max="1440">
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="editPersonEnabled" checked>
+              <label class="form-check-label small" for="editPersonEnabled">Personenerkennung & Begrüßung aktiv</label>
+            </div>
+          </div>
+          <div class="modal-footer border-0">
+            <button type="button" class="btn btn-glass" data-bs-dismiss="modal">Abbrechen</button>
+            <button type="submit" class="btn btn-neo-primary px-4">Speichern</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: Camera & AI Settings -->
   <div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
