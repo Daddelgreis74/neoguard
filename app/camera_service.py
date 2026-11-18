@@ -139,7 +139,7 @@ class TapoCameraService:
                     continue
 
                 if cap is None or not cap.isOpened():
-                    rtsp_url = self.build_rtsp_url(cfg, stream=cfg.get("preview_stream", "stream2"))
+                    rtsp_url = self.build_rtsp_url(cfg, stream=cfg.get("stream_quality", "stream1"))
                     if not rtsp_url:
                         time.sleep(1.0)
                         continue
