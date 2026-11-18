@@ -109,24 +109,34 @@ class RoomGuardWorker:
         detections = self.face.detect_and_embed(frame_bgr)
         if not detections:
             body_bbox = None
-            # Fallback: track walking/sideways/back-turned person via motion-gated HOG body detector
-            if guard_cfg.get("auto_tracking", True):
-                person_bbox, cur_gray = self.face.detect_largest_person_bbox(
-                    frame_bgr, prev_gray=self._prev_motion_gray
+            # Motion-contour detection + automatic 2.2x AI Digital-Zoom into moving person's head region
+            person_bbox, cur_gray = self.face.detect_largest_person_bbox(
+                frame_bgr, prev_gray=self._prev_motion_gray
+            )
+            self._prev_motion_gray = cur_gray
+            body_bbox = person_bbox
+            if person_bbox is not None:
+                self._last_person_seen_ts = datetime.now(timezone.utc).timestamp()
+                # Zoom in on the upper body to catch distant/small faces
+                detections = self.face.detect_faces_in_crop(
+                    frame_bgr, person_bbox, upscale=2.2, upper_body_only=True
                 )
-                self._prev_motion_gray = cur_gray
-                body_bbox = person_bbox
-                if person_bbox is not None:
-                    self._last_person_seen_ts = datetime.now(timezone.utc).timestamp()
+                if guard_cfg.get("auto_tracking", True):
+                    target_box = (
+                        max(detections, key=lambda d: d["bbox"][2] * d["bbox"][3])["bbox"]
+                        if detections
+                        else person_bbox
+                    )
                     moved = self.camera.track_face_in_frame(
-                        camera_cfg, person_bbox, frame_bgr.shape, speed_multiplier=track_speed
+                        camera_cfg, target_box, frame_bgr.shape, speed_multiplier=track_speed
                     )
                     if moved:
                         self._at_home_preset = False
-                        # Reset motion baseline after motor movement so camera pan doesn't self-trigger
                         self._prev_motion_gray = None
-            self.camera.update_ai_overlay(frame_bgr.shape, [], body_bbox=body_bbox)
-            return []
+
+            if not detections:
+                self.camera.update_ai_overlay(frame_bgr.shape, [], body_bbox=body_bbox)
+                return []
 
         self._prev_motion_gray = None
         self._last_person_seen_ts = datetime.now(timezone.utc).timestamp()
@@ -156,6 +166,21 @@ class RoomGuardWorker:
             matched_person, sim_score = self.face.match_person(
                 det["embedding"], persons, threshold=threshold
             )
+
+            # If a small/distant face wasn't recognized yet, zoom 2.2x on it and re-check
+            if matched_person is None and not det.get("zoomed") and bw < 85:
+                zoomed_dets = self.face.detect_faces_in_crop(
+                    frame_bgr, det["bbox"], upscale=2.2, upper_body_only=False
+                )
+                if zoomed_dets:
+                    z_best = max(zoomed_dets, key=lambda d: d["bbox"][2] * d["bbox"][3])
+                    z_person, z_score = self.face.match_person(
+                        z_best["embedding"], persons, threshold=threshold
+                    )
+                    if z_score > sim_score:
+                        matched_person, sim_score = z_person, z_score
+                        det = z_best
+                        bx, by, bw, bh = det["bbox"]
 
             if matched_person is not None:
                 p_id = matched_person["id"]

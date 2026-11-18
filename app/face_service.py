@@ -265,3 +265,63 @@ class LocalFaceService:
         rx, ry, rw, rh = best_rect
         inv = 1.0 / scale
         return [int(rx * inv), int(ry * inv), int(rw * inv), int(rh * inv)], cur_gray
+
+    def detect_faces_in_crop(
+        self,
+        image_bgr: np.ndarray,
+        roi_bbox: List[int],
+        upscale: float = 2.2,
+        upper_body_only: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """
+        Digital AI-Zoom: crop the target region (e.g. upper body of a distant moving person
+        or an uncertain small face), upscale with cubic interpolation, and run YuNet + SFace.
+        Maps detected bounding boxes and landmarks back to full-frame coordinates.
+        """
+        if image_bgr is None or image_bgr.size == 0 or len(roi_bbox) < 4:
+            return []
+
+        fh, fw = image_bgr.shape[:2]
+        rx, ry, rw, rh = [int(v) for v in roi_bbox[:4]]
+        if upper_body_only:
+            rh = max(40, int(rh * 0.62))
+
+        pad_x = int(rw * 0.25)
+        pad_y = int(rh * 0.25)
+        x1 = max(0, rx - pad_x)
+        y1 = max(0, ry - pad_y)
+        x2 = min(fw, rx + rw + pad_x)
+        y2 = min(fh, ry + rh + pad_y)
+        if (x2 - x1) < 32 or (y2 - y1) < 32:
+            return []
+
+        crop = image_bgr[y1:y2, x1:x2]
+        zoomed = cv2.resize(
+            crop,
+            (max(1, int((x2 - x1) * upscale)), max(1, int((y2 - y1) * upscale))),
+            interpolation=cv2.INTER_CUBIC,
+        )
+        dets = self.detect_and_embed(zoomed)
+        mapped: List[Dict[str, Any]] = []
+        for d in dets:
+            bx, by, bw, bh = d["bbox"]
+            new_bbox = [
+                int(x1 + bx / upscale),
+                int(y1 + by / upscale),
+                max(1, int(bw / upscale)),
+                max(1, int(bh / upscale)),
+            ]
+            new_lms = [
+                [int(x1 + p[0] / upscale), int(y1 + p[1] / upscale)]
+                for p in d.get("landmarks", [])
+            ]
+            mapped.append(
+                {
+                    "bbox": new_bbox,
+                    "landmarks": new_lms,
+                    "score": d["score"],
+                    "embedding": d["embedding"],
+                    "zoomed": True,
+                }
+            )
+        return mapped
