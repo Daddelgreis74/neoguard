@@ -352,13 +352,13 @@ class TapoCameraService:
         """Start smooth continuous Pan/Tilt movement via ONVIF ContinuousMove."""
         vx, vy = 0.0, 0.0
         if direction == "left":
-            vx = speed
-        elif direction == "right":
             vx = -speed
+        elif direction == "right":
+            vx = speed
         elif direction == "up":
-            vy = -speed
-        elif direction == "down":
             vy = speed
+        elif direction == "down":
+            vy = -speed
         else:
             return {"ok": False, "error": f"Unbekannte Richtung: {direction}"}
 
