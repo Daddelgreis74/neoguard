@@ -22,8 +22,12 @@ RUN ARCH=$(dpkg --print-architecture) && \
     curl -fsSL "https://github.com/AlexxIT/go2rtc/releases/latest/download/${GO2RTC_BIN}" -o /usr/local/bin/go2rtc && \
     chmod +x /usr/local/bin/go2rtc
 
-# Pre-bundle 100% offline Vision (YuNet + SFace ONNX) and German Piper TTS voice models
-RUN mkdir -p /opt/models/vision /opt/models/tts && \
+# Install official standalone Piper TTS C++ binary & pre-bundle 100% offline Vision + German Voice models
+RUN ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "arm64" ]; then PIPER_TAR="piper_linux_aarch64.tar.gz"; else PIPER_TAR="piper_linux_x86_64.tar.gz"; fi && \
+    curl -fsSL "https://github.com/rhasspy/piper/releases/latest/download/${PIPER_TAR}" | tar -xz -C /opt && \
+    ln -sf /opt/piper/piper /usr/local/bin/piper && \
+    mkdir -p /opt/models/vision /opt/models/tts && \
     curl -fsSL "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" \
       -o /opt/models/vision/face_detection_yunet_2023mar.onnx && \
     curl -fsSL "https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx" \
