@@ -31,8 +31,6 @@ class LocalFaceService:
         self._recognizer = None
         self._haar_cascade = None
         self._infer_lock = threading.Lock()
-        self._hog = cv2.HOGDescriptor()
-        self._hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
         self.engine_name = "opencv-fallback"
         self._init_engines()
 
@@ -219,9 +217,8 @@ class LocalFaceService:
         prev_gray: Optional[np.ndarray] = None,
     ) -> Tuple[Optional[List[int]], Optional[np.ndarray]]:
         """
-        Motion-gated full-body person detector using OpenCV HOG.
-        Requires both high HOG confidence (>= 0.85) AND real pixel motion inside the bbox
-        so static objects (e.g. hanging coats/jackets) never trigger false tracking.
+        Pure motion-contour tracker (replaces HOG so static baskets/jackets are never tracked).
+        Finds the largest genuinely moving object between consecutive frames.
         Returns (bbox_or_None, current_small_gray).
         """
         if image_bgr is None or image_bgr.size == 0:
@@ -230,49 +227,41 @@ class LocalFaceService:
         h, w = image_bgr.shape[:2]
         target_w = 480
         scale = target_w / float(w)
-        small = cv2.resize(image_bgr, (target_w, max(1, int(h * scale))), interpolation=cv2.INTER_AREA)
-        cur_gray = cv2.GaussianBlur(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY), (9, 9), 0)
+        small_h = max(1, int(h * scale))
+        small = cv2.resize(image_bgr, (target_w, small_h), interpolation=cv2.INTER_AREA)
+        cur_gray = cv2.GaussianBlur(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY), (11, 11), 0)
 
-        # If we have a previous frame, require real motion before running HOG
         if prev_gray is None or prev_gray.shape != cur_gray.shape:
             return None, cur_gray
 
         diff = cv2.absdiff(prev_gray, cur_gray)
-        _, thresh = cv2.threshold(diff, 22, 255, cv2.THRESH_BINARY)
+        _, thresh = cv2.threshold(diff, 25, 255, cv2.THRESH_BINARY)
         total_motion_ratio = float(np.count_nonzero(thresh)) / float(thresh.size)
-        # Ignore completely static scenes (<0.4% changed pixels) and full-frame camera shake (>45%)
-        if total_motion_ratio < 0.004 or total_motion_ratio > 0.45:
+
+        # Ignore static scenes (<0.8% changed pixels) and full-frame camera shake (>40%)
+        if total_motion_ratio < 0.008 or total_motion_ratio > 0.40:
             return None, cur_gray
 
-        rects, weights = self._hog.detectMultiScale(
-            small,
-            winStride=(8, 8),
-            padding=(8, 8),
-            scale=1.08,
-        )
-        if len(rects) == 0:
+        # Merge nearby motion blobs into a single clean person silhouette
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 25))
+        dilated = cv2.dilate(thresh, kernel, iterations=2)
+        contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
             return None, cur_gray
 
-        best_idx = -1
-        best_val = -1.0
-        for idx, (rx, ry, rw, rh) in enumerate(rects):
-            wt = float(weights[idx]) if idx < len(weights) else 0.0
-            if wt < 0.85:
-                continue
-            # Require at least 3% moving pixels inside this specific person bounding box
-            roi = thresh[max(0, ry) : ry + rh, max(0, rx) : rx + rw]
-            if roi.size == 0:
-                continue
-            roi_motion = float(np.count_nonzero(roi)) / float(roi.size)
-            if roi_motion < 0.03:
-                continue
-            val = (rw * rh) * wt
-            if val > best_val:
-                best_val = val
-                best_idx = idx
+        min_area = (target_w * small_h) * 0.015  # at least 1.5% of frame area
+        best_rect = None
+        best_area = 0.0
+        for cnt in contours:
+            rx, ry, rw, rh = cv2.boundingRect(cnt)
+            area = float(rw * rh)
+            if area >= min_area and area > best_area:
+                best_area = area
+                best_rect = (rx, ry, rw, rh)
 
-        if best_idx < 0:
+        if best_rect is None:
             return None, cur_gray
-        rx, ry, rw, rh = rects[best_idx]
+
+        rx, ry, rw, rh = best_rect
         inv = 1.0 / scale
         return [int(rx * inv), int(ry * inv), int(rw * inv), int(rh * inv)], cur_gray
