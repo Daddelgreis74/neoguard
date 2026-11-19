@@ -510,9 +510,9 @@ class TapoCameraService:
         Pan/tilt the Tapo C200 to keep a detected face or person centered in the frame.
         Returns True if a tracking movement was performed.
         """
-        speed_mult = max(0.3, min(2.5, float(speed_multiplier or 1.4)))
+        speed_mult = max(0.3, min(5.0, float(speed_multiplier or 1.4)))
         now = time.time()
-        min_cooldown = max(0.15, 0.35 / speed_mult)
+        min_cooldown = max(0.06, 0.28 / speed_mult)
         if (now - self._last_track_ts) < min_cooldown:
             return False
 
@@ -528,13 +528,13 @@ class TapoCameraService:
         err_x = (face_cx - (w / 2.0)) / float(w)
         err_y = (face_cy - (h / 2.0)) / float(h)
 
-        # Deadzone ±10% horizontally, ±14% vertically
+        # Deadzone ±9% horizontally, ±12% vertically
         vx = 0.0
         vy = 0.0
-        if abs(err_x) > 0.10:
-            vx = max(-1.0, min(1.0, err_x * 1.5 * speed_mult))
-        if abs(err_y) > 0.14:
-            vy = max(-0.85, min(0.85, -err_y * 1.1 * speed_mult))
+        if abs(err_x) > 0.09:
+            vx = max(-1.0, min(1.0, err_x * 2.2 * speed_mult))
+        if abs(err_y) > 0.12:
+            vy = max(-1.0, min(1.0, -err_y * 1.6 * speed_mult))
 
         if vx == 0.0 and vy == 0.0:
             return False
@@ -552,7 +552,7 @@ class TapoCameraService:
 </tptz:ContinuousMove>""",
             )
             if resp.status_code == 200 and "Fault" not in resp.text:
-                pulse_sec = min(0.70, max(0.16, max(abs(err_x), abs(err_y)) * 0.85 * speed_mult))
+                pulse_sec = min(0.55, max(0.10, max(abs(err_x), abs(err_y)) * 0.65 * min(speed_mult, 3.0)))
                 time.sleep(pulse_sec)
                 self.stop_ptz(camera_cfg)
                 return True

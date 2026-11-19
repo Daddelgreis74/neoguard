@@ -346,7 +346,7 @@
 
   // Tracking Speed Scale (- ||||||||||||| +)
   const saveTrackingSpeed = async (val) => {
-    const clamped = Math.max(0.3, Math.min(2.5, Math.round(val * 10) / 10));
+    const clamped = Math.max(0.3, Math.min(5.0, Math.round(val * 10) / 10));
     const slider = document.getElementById("trackingSpeedSlider");
     const badge = document.getElementById("trackingSpeedVal");
     if (slider) slider.value = clamped;

@@ -381,7 +381,7 @@ class RoomGuardWorker:
                     guard_cfg.get("active_hours_end", "23:00"),
                 ):
                     if guard_cfg.get("auto_tracking", True):
-                        interval = min(interval, 0.4)
+                        interval = min(interval, 0.12)
 
                     frame = await asyncio.to_thread(
                         self.camera.capture_frame,
