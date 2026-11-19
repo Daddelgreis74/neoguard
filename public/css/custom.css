@@ -505,9 +505,9 @@ body {
 
 /* 3D UI Icons */
 .icon3d {
-  width: 1.25em;
-  height: 1.25em;
-  vertical-align: -0.24em;
+  width: 1.55em;
+  height: 1.55em;
+  vertical-align: -0.32em;
   object-fit: contain;
   display: inline-block;
   flex-shrink: 0;
@@ -516,26 +516,26 @@ body {
 }
 
 .icon3d-sm {
-  width: 1.05em;
-  height: 1.05em;
-  vertical-align: -0.18em;
+  width: 1.3em;
+  height: 1.3em;
+  vertical-align: -0.25em;
 }
 
 .icon3d-md {
-  width: 20px;
-  height: 20px;
-  vertical-align: -4px;
-}
-
-.icon3d-lg {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   vertical-align: -5px;
 }
 
+.icon3d-lg {
+  width: 32px;
+  height: 32px;
+  vertical-align: -7px;
+}
+
 .icon3d-xl {
-  width: 44px;
-  height: 44px;
+  width: 56px;
+  height: 56px;
 }
 
 .icon3d-rot-90 {
