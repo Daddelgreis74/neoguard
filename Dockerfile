@@ -1,3 +1,8 @@
+FROM golang:1.23-alpine AS tapoctl-build
+WORKDIR /src
+COPY tapoctl/ ./
+RUN CGO_ENABLED=0 go build -trimpath -o /tapoctl .
+
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -6,6 +11,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DATA_DIR=/app/data
 
 WORKDIR /app
+
+COPY --from=tapoctl-build /tapoctl /usr/local/bin/tapoctl
 
 # Install system dependencies (FFmpeg for 8kHz pcm_alaw audio streaming + OpenCV runtime libs)
 RUN apt-get update && apt-get install -y --no-install-recommends \

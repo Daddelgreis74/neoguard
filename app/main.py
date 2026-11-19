@@ -121,6 +121,11 @@ class PrivacyRequest(BaseModel):
     enabled: bool
 
 
+class HardwareControlRequest(BaseModel):
+    control: str
+    value: Any = None
+
+
 class PresetRequest(BaseModel):
     preset_id: str
 
@@ -227,6 +232,18 @@ def stop_camera_ptz() -> Dict[str, Any]:
 def toggle_camera_privacy(payload: PrivacyRequest) -> Dict[str, Any]:
     raw_cfg = store.get_raw_config()
     return camera_service.set_privacy_mode(raw_cfg["camera"], payload.enabled)
+
+
+@app.get("/api/camera/hardware")
+def get_camera_hardware_state() -> Dict[str, Any]:
+    raw_cfg = store.get_raw_config()
+    return camera_service.get_hardware_state(raw_cfg["camera"])
+
+
+@app.post("/api/camera/hardware")
+def set_camera_hardware(payload: HardwareControlRequest) -> Dict[str, Any]:
+    raw_cfg = store.get_raw_config()
+    return camera_service.set_hardware_control(raw_cfg["camera"], payload.control, payload.value)
 
 
 @app.post("/api/camera/preset")

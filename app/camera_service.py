@@ -1,9 +1,12 @@
 import base64
 import datetime
 import hashlib
+import json
 import logging
 import os
 import re
+import shutil
+import subprocess
 import threading
 import time
 import urllib.parse
@@ -38,6 +41,7 @@ class TapoCameraService:
         self._ai_overlay_enabled: bool = True
         self._ai_overlay_lock = threading.Lock()
         self._ai_overlay_data: Dict[str, Any] = {"ts": 0.0, "shape": None, "faces": [], "body": None}
+        self._tapoctl_lock = threading.Lock()
 
     @staticmethod
     def _cfg_signature(camera_cfg: Dict[str, Any]) -> str:
@@ -556,10 +560,65 @@ class TapoCameraService:
             logger.debug("Auto-tracking pulse failed: %s", exc)
         return False
 
+    def _tapoctl_request(
+        self,
+        camera_cfg: Dict[str, Any],
+        operation: str,
+        control: Optional[str] = None,
+        value: Any = None,
+    ) -> Dict[str, Any]:
+        """Execute TPAP/SPAKE2+ or legacy Tapo local control via /usr/local/bin/tapoctl."""
+        tapoctl_bin = shutil.which("tapoctl") or (
+            "/usr/local/bin/tapoctl" if Path("/usr/local/bin/tapoctl").exists() else None
+        )
+        if not tapoctl_bin:
+            return {"ok": False, "error": "tapoctl Binary nicht installiert."}
+
+        host = (camera_cfg.get("host") or "").strip()
+        pw = camera_cfg.get("cloud_password") or camera_cfg.get("rtsp_pass") or ""
+        if not host or not pw:
+            return {"ok": False, "error": "Kamera-IP und TP-Link Cloud-Passwort erforderlich."}
+
+        req: Dict[str, Any] = {
+            "host": host,
+            "username": "admin",
+            "password": pw,
+            "operation": operation,
+        }
+        if operation == "set":
+            req["control"] = control
+            req["value"] = value
+
+        with self._tapoctl_lock:
+            try:
+                res = subprocess.run(
+                    [tapoctl_bin],
+                    input=json.dumps(req, separators=(",", ":")).encode("utf-8"),
+                    capture_output=True,
+                    timeout=15,
+                    check=False,
+                )
+                out_str = res.stdout.decode("utf-8", errors="replace").strip()
+                if not out_str:
+                    return {"ok": False, "error": res.stderr.decode("utf-8", errors="replace").strip() or "Keine Antwort von tapoctl."}
+                return json.loads(out_str)
+            except Exception as exc:
+                return {"ok": False, "error": str(exc)}
+
+    def get_hardware_state(self, camera_cfg: Dict[str, Any]) -> Dict[str, Any]:
+        """Probe Tapo C200 V5 hardware capabilities & current state via TPAP."""
+        return self._tapoctl_request(camera_cfg, "probe")
+
+    def set_hardware_control(self, camera_cfg: Dict[str, Any], control: str, value: Any) -> Dict[str, Any]:
+        """Control Tapo C200 hardware features (privacy, led, siren, speaker_volume, night_vision, reboot)."""
+        return self._tapoctl_request(camera_cfg, "set", control=control, value=value)
+
     def set_privacy_mode(self, camera_cfg: Dict[str, Any], enabled: bool) -> Dict[str, Any]:
-        """Toggle software/hardware privacy mode."""
+        """Toggle physical lens privacy mode on the Tapo C200 via TPAP/tapoctl."""
         self._privacy_enabled = bool(enabled)
-        return {"ok": True, "privacy_mode": self._privacy_enabled}
+        res = self._tapoctl_request(camera_cfg, "set", control="privacy", value=self._privacy_enabled)
+        res["privacy_mode"] = self._privacy_enabled
+        return res
 
     def goto_preset(self, camera_cfg: Dict[str, Any], preset_id: str) -> Dict[str, Any]:
         """Move camera to a saved PTZ preset via ONVIF Port 2020."""

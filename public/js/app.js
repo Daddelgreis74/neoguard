@@ -381,10 +381,69 @@
     const data = await res.json();
     showStatus(
       privacyEnabled
-        ? "Privatsphäre-Modus aktiviert (Linse verdeckt)."
+        ? "Physischer Privatsphäre-Modus aktiviert (Linse fährt ins Gehäuse)."
         : "Privatsphäre-Modus beendet (Kamera aktiv).",
       data.ok ? "info" : "warning"
     );
+  });
+
+  // Tapo C200 V5 TPAP Hardware Controls (Siren, LED, Night Vision)
+  let hwLedOn = true;
+  const nightModes = ["auto", "on", "off"];
+  let nightModeIdx = 0;
+
+  document.getElementById("btnHardwareSiren")?.addEventListener("click", async () => {
+    const res = await fetch("/api/camera/hardware", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ control: "siren", value: true }),
+    });
+    const data = await res.json();
+    showStatus(data.ok ? "Kamera-Sirene ausgelöst!" : `Sirene Fehler: ${data.error}`, data.ok ? "warning" : "danger");
+    if (data.ok) {
+      setTimeout(() => {
+        fetch("/api/camera/hardware", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ control: "siren", value: false }),
+        });
+      }, 2500);
+    }
+  });
+
+  document.getElementById("btnHardwareLed")?.addEventListener("click", async () => {
+    hwLedOn = !hwLedOn;
+    const res = await fetch("/api/camera/hardware", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ control: "led", value: hwLedOn }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      document.getElementById("hwLedState").textContent = hwLedOn ? "AN" : "AUS";
+      showStatus(`Status-LED ${hwLedOn ? "eingeschaltet" : "ausgeschaltet"}.`, "info");
+    } else {
+      hwLedOn = !hwLedOn;
+      showStatus(`LED Fehler: ${data.error}`, "warning");
+    }
+  });
+
+  document.getElementById("btnHardwareNight")?.addEventListener("click", async () => {
+    nightModeIdx = (nightModeIdx + 1) % nightModes.length;
+    const mode = nightModes[nightModeIdx];
+    const res = await fetch("/api/camera/hardware", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ control: "night_vision", value: mode }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const labels = { auto: "Auto", on: "Ein", off: "Aus" };
+      document.getElementById("hwNightState").textContent = labels[mode] || mode;
+      showStatus(`Nachtsicht auf "${labels[mode]}" gestellt.`, "info");
+    } else {
+      showStatus(`Nachtsicht Fehler: ${data.error}`, "warning");
+    }
   });
 
   // Refresh snapshot
