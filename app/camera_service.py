@@ -129,6 +129,11 @@ class TapoCameraService:
         self._reader_thread = threading.Thread(target=self._rtsp_reader_loop, daemon=True)
         self._reader_thread.start()
 
+    def stop_reader(self) -> None:
+        self._reader_stop.set()
+        if self._reader_thread is not None and self._reader_thread.is_alive():
+            self._reader_thread.join(timeout=1.5)
+
     def _rtsp_reader_loop(self) -> None:
         """Keep one persistent RTSP connection open so frames are always ready with minimal latency."""
         cap = None
