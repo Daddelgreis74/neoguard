@@ -45,6 +45,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "tracking_speed": 1.4,
         "tracking_return_home": True,
         "tracking_home_delay_sec": 20,
+        "preset_names": {
+            "1": "Tür / Eingang",
+            "2": "Raum-Mitte",
+            "3": "Schreibtisch",
+        },
         "tts_voice": "de_DE-thorsten-medium",
         "tts_volume": 100,
         "go2rtc_url": os.environ.get("GO2RTC_URL", "http://127.0.0.1:1984"),

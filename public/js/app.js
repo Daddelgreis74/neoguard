@@ -124,6 +124,16 @@
       if (volSlider) volSlider.value = volVal;
       if (volBadge) volBadge.textContent = `${volVal}%`;
 
+      const defaultPresets = { "1": "Tür / Eingang", "2": "Raum-Mitte", "3": "Schreibtisch" };
+      const presetNames = { ...defaultPresets, ...(guard.preset_names || {}) };
+      ["1", "2", "3"].forEach((idx) => {
+        const labelEl = document.getElementById(`presetLabel${idx}`);
+        const inputEl = document.getElementById(`cfgPresetName${idx}`);
+        const name = presetNames[idx] || defaultPresets[idx];
+        if (labelEl) labelEl.textContent = name;
+        if (inputEl) inputEl.value = name;
+      });
+
       renderPersons(data.persons || []);
     } catch (err) {
       console.error("Failed to load config:", err);
@@ -543,40 +553,7 @@
     loadEvents();
   });
 
-  // Speak Form
-  document.getElementById("speakForm")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const input = document.getElementById("speakTextInput");
-    const text = input.value.trim();
-    if (!text) return;
-
-    const btn = document.getElementById("btnSpeakNow");
-    btn.disabled = true;
-    try {
-      const res = await fetch("/api/tts/speak", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        showStatus(`Ausgabe auf Tapo C200 Lautsprecher: "${data.text}"`, "success");
-      } else {
-        showStatus(data.error || "WAV lokal generiert (Kamera noch offline).", "warning");
-      }
-      loadEvents();
-    } finally {
-      btn.disabled = false;
-    }
-  });
-
-  document.querySelectorAll(".quick-tts-chip").forEach((chip) => {
-    chip.addEventListener("click", () => {
-      document.getElementById("speakTextInput").value = chip.getAttribute("data-text");
-    });
-  });
-
-  // TTS Volume Slider (10% - 200%)
+  // TTS Volume Slider (10% - 200%) in Settings
   const saveTtsVolume = async (val) => {
     const clamped = Math.max(10, Math.min(200, Math.round(val / 10) * 10));
     const slider = document.getElementById("ttsVolumeSlider");
@@ -910,6 +887,13 @@
       greet_unknown: document.getElementById("cfgGreetUnknown").checked,
       auto_tracking: document.getElementById("cfgAutoTracking").checked,
       tracking_return_home: document.getElementById("cfgTrackingReturnHome").checked,
+      tts_volume: parseInt(document.getElementById("ttsVolumeSlider")?.value || "100", 10),
+      tracking_speed: parseFloat(document.getElementById("trackingSpeedSlider")?.value || "1.4"),
+      preset_names: {
+        "1": document.getElementById("cfgPresetName1")?.value.trim() || "Tür / Eingang",
+        "2": document.getElementById("cfgPresetName2")?.value.trim() || "Raum-Mitte",
+        "3": document.getElementById("cfgPresetName3")?.value.trim() || "Schreibtisch",
+      },
     };
 
     await fetch("/api/config/camera", {

@@ -97,6 +97,7 @@ class GuardSettingsUpdate(BaseModel):
     tracking_speed: Optional[float] = None
     tracking_return_home: Optional[bool] = None
     tracking_home_delay_sec: Optional[int] = None
+    preset_names: Optional[Dict[str, str]] = None
     tts_voice: Optional[str] = None
     tts_volume: Optional[int] = None
 

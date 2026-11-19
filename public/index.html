@@ -155,88 +155,23 @@
                 </div>
                 <div class="d-flex flex-column gap-2 mb-3">
                   <div class="btn-group">
-                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="1"><i class="fa-solid fa-location-crosshairs text-info me-2"></i>1 · Tür / Eingang anfahren</button>
+                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="1"><i class="fa-solid fa-location-crosshairs text-info me-2"></i>1 · <span id="presetLabel1">Tür / Eingang</span> anfahren</button>
                     <button class="btn btn-glass btn-sm px-3" data-save-preset="1" title="Aktuelle Kameraposition auf Platz 1 speichern"><i class="fa-solid fa-floppy-disk text-success"></i></button>
                   </div>
                   <div class="btn-group">
-                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="2"><i class="fa-solid fa-location-crosshairs text-info me-2"></i>2 · Raum-Mitte anfahren</button>
+                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="2"><i class="fa-solid fa-location-crosshairs text-info me-2"></i>2 · <span id="presetLabel2">Raum-Mitte</span> anfahren</button>
                     <button class="btn btn-glass btn-sm px-3" data-save-preset="2" title="Aktuelle Kameraposition auf Platz 2 speichern"><i class="fa-solid fa-floppy-disk text-success"></i></button>
                   </div>
                   <div class="btn-group">
-                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="3"><i class="fa-solid fa-location-crosshairs text-info me-2"></i>3 · Schreibtisch anfahren</button>
+                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="3"><i class="fa-solid fa-location-crosshairs text-info me-2"></i>3 · <span id="presetLabel3">Schreibtisch</span> anfahren</button>
                     <button class="btn btn-glass btn-sm px-3" data-save-preset="3" title="Aktuelle Kameraposition auf Platz 3 speichern"><i class="fa-solid fa-floppy-disk text-success"></i></button>
                   </div>
                 </div>
-                <div class="small text-secondary mb-3">
+                <div class="small text-secondary mb-0">
                   <i class="fa-solid fa-circle-info me-1"></i>Kamera per Steuerkreuz ausrichten → rechts auf <i class="fa-solid fa-floppy-disk text-success"></i> klicken, um die Position fest in der Tapo C200 zu speichern.
-                </div>
-
-                <!-- Tracking Speed Scale (- ||||||||||||| +) -->
-                <div class="pt-2 border-top border-secondary border-opacity-25">
-                  <div class="d-flex justify-content-between align-items-center mb-1">
-                    <span class="small fw-semibold"><i class="fa-solid fa-gauge-high text-info me-1"></i>Tracking-Tempo</span>
-                    <span class="badge bg-info bg-opacity-25 text-info" id="trackingSpeedVal">1.4x</span>
-                  </div>
-                  <div class="d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnSpeedMinus" title="Langsamer">
-                      <i class="fa-solid fa-minus"></i>
-                    </button>
-                    <input type="range" class="form-range flex-grow-1" id="trackingSpeedSlider" min="0.3" max="5.0" step="0.1" value="1.4">
-                    <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnSpeedPlus" title="Schneller">
-                      <i class="fa-solid fa-plus"></i>
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Tapo C200 V5 Hardware Controls (TPAP) -->
-                <div class="pt-2 mt-2 border-top border-secondary border-opacity-25">
-                  <div class="small fw-semibold mb-2"><i class="fa-solid fa-microchip text-info me-1"></i>Kamera-Hardware (TPAP)</div>
-                  <div class="d-flex flex-wrap gap-2">
-                    <button type="button" class="btn btn-glass btn-sm" id="btnHardwareSiren" title="Kamera-Sirene kurz auslösen">
-                      <i class="fa-solid fa-bell text-danger me-1"></i>Sirene
-                    </button>
-                    <button type="button" class="btn btn-glass btn-sm" id="btnHardwareLed" title="Status-LED umschalten">
-                      <i class="fa-solid fa-lightbulb text-warning me-1"></i>LED: <span id="hwLedState">AN</span>
-                    </button>
-                    <button type="button" class="btn btn-glass btn-sm" id="btnHardwareNight" title="Nachtsicht umschalten (Auto / Ein / Aus)">
-                      <i class="fa-solid fa-moon text-info me-1"></i>IR: <span id="hwNightState">Auto</span>
-                    </button>
-                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        <!-- Direct Speaker Output (Piper TTS -> Tapo C200 Speaker) -->
-        <div class="glass-panel p-4">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="fw-bold mb-0"><i class="fa-solid fa-volume-high text-success me-2"></i>Direkte Kamera-Durchsage (Piper TTS)</h5>
-            <a href="/api/tts/last.wav" target="_blank" class="btn btn-glass btn-sm" title="Letzte erzeugte WAV-Datei anhören">
-              <i class="fa-solid fa-file-audio me-1"></i>Letzte WAV
-            </a>
-          </div>
-          <form id="speakForm" class="row g-2">
-            <div class="col-sm-9">
-              <input type="text" class="form-control" id="speakTextInput" placeholder="z. B. {greeting_time}! Schön, dass du da bist." value="{greeting_time}! Schön, dass du da bist." required>
-            </div>
-            <div class="col-sm-3 d-grid">
-              <button type="submit" class="btn btn-neo-primary" id="btnSpeakNow">
-                <i class="fa-solid fa-bullhorn me-1"></i>Sprechen
-              </button>
-            </div>
-          </form>
-          <div class="d-flex flex-wrap gap-2 mt-3">
-            <button type="button" class="btn btn-glass btn-sm quick-tts-chip" data-text="Hallo Daniel! Willkommen zu Hause.">👋 Willkommen zu Hause</button>
-            <button type="button" class="btn btn-glass btn-sm quick-tts-chip" data-text="Guten Morgen! Es ist {time} Uhr.">☀️ Guten Morgen</button>
-            <button type="button" class="btn btn-glass btn-sm quick-tts-chip" data-text="Achtung, die Raumüberwachung ist aktiv.">🛡️ Raumüberwachung aktiv</button>
-          </div>
-          <div class="d-flex align-items-center gap-2 mt-3 pt-2 border-top border-secondary border-opacity-25">
-            <span class="small text-secondary text-nowrap"><i class="fa-solid fa-volume-low text-success me-1"></i>Lautstärke</span>
-            <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnVolMinus" title="Leiser"><i class="fa-solid fa-minus"></i></button>
-            <input type="range" class="form-range flex-grow-1" id="ttsVolumeSlider" min="10" max="200" step="10" value="100">
-            <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnVolPlus" title="Lauter"><i class="fa-solid fa-plus"></i></button>
-            <span class="badge bg-success bg-opacity-25 text-success" id="ttsVolumeVal" style="min-width: 48px;">100%</span>
           </div>
         </div>
       </div>
@@ -507,9 +442,61 @@
                   <label class="form-check-label small" for="cfgTrackingReturnHome">Nach 20s ohne Person zurück zu Preset 1</label>
                 </div>
               </div>
+              <div class="col-md-6 mt-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <label class="form-label small fw-semibold mb-0"><i class="fa-solid fa-volume-low text-success me-1"></i>Lautstärke (TTS)</label>
+                  <span class="badge bg-success bg-opacity-25 text-success" id="ttsVolumeVal" style="min-width: 48px;">100%</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnVolMinus" title="Leiser"><i class="fa-solid fa-minus"></i></button>
+                  <input type="range" class="form-range flex-grow-1" id="ttsVolumeSlider" min="10" max="200" step="10" value="100">
+                  <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnVolPlus" title="Lauter"><i class="fa-solid fa-plus"></i></button>
+                </div>
+              </div>
+              <div class="col-md-6 mt-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <label class="form-label small fw-semibold mb-0"><i class="fa-solid fa-gauge-high text-info me-1"></i>Tracking-Tempo</label>
+                  <span class="badge bg-info bg-opacity-25 text-info" id="trackingSpeedVal">1.4x</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnSpeedMinus" title="Langsamer"><i class="fa-solid fa-minus"></i></button>
+                  <input type="range" class="form-range flex-grow-1" id="trackingSpeedSlider" min="0.3" max="5.0" step="0.1" value="1.4">
+                  <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnSpeedPlus" title="Schneller"><i class="fa-solid fa-plus"></i></button>
+                </div>
+              </div>
             </div>
 
-            <h6 class="fw-bold text-info mt-4 mb-3">3. Login-Zugangsdaten ändern (optional)</h6>
+            <h6 class="fw-bold text-info mt-4 mb-3">3. Schnell-Positionen (Presets) &amp; Kamera-Hardware (TPAP)</h6>
+            <div class="row g-3 mb-3">
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Preset 1 Name</label>
+                <input type="text" class="form-control" id="cfgPresetName1" placeholder="Tür / Eingang" value="Tür / Eingang">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Preset 2 Name</label>
+                <input type="text" class="form-control" id="cfgPresetName2" placeholder="Raum-Mitte" value="Raum-Mitte">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Preset 3 Name</label>
+                <input type="text" class="form-control" id="cfgPresetName3" placeholder="Schreibtisch" value="Schreibtisch">
+              </div>
+              <div class="col-12">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                  <span class="small fw-semibold me-2"><i class="fa-solid fa-microchip text-info me-1"></i>Kamera-Hardware (TPAP):</span>
+                  <button type="button" class="btn btn-glass btn-sm" id="btnHardwareSiren" title="Kamera-Sirene kurz auslösen">
+                    <i class="fa-solid fa-bell text-danger me-1"></i>Sirene
+                  </button>
+                  <button type="button" class="btn btn-glass btn-sm" id="btnHardwareLed" title="Status-LED umschalten">
+                    <i class="fa-solid fa-lightbulb text-warning me-1"></i>LED: <span id="hwLedState">AN</span>
+                  </button>
+                  <button type="button" class="btn btn-glass btn-sm" id="btnHardwareNight" title="Nachtsicht umschalten (Auto / Ein / Aus)">
+                    <i class="fa-solid fa-moon text-info me-1"></i>IR: <span id="hwNightState">Auto</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <h6 class="fw-bold text-info mt-4 mb-3">4. Login-Zugangsdaten ändern (optional)</h6>
             <div class="row g-3">
               <div class="col-md-4">
                 <label class="form-label small fw-semibold">Aktuelles Passwort</label>
