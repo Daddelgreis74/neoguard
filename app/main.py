@@ -33,7 +33,7 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
 PUBLIC_DIR = Path(__file__).resolve().parent.parent / "public"
 
 store = ConfigStore(data_dir=DATA_DIR)
-camera_manager = CameraManager()
+camera_manager = CameraManager(data_dir=store.data_dir)
 camera_service = camera_manager.get_service("cam_1")
 face_service = LocalFaceService(models_dir=store.models_dir)
 tts_service = LocalTTSService(models_dir=store.models_dir)

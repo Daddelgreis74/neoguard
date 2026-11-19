@@ -687,8 +687,9 @@ class TapoCameraService:
 class CameraManager:
     """Manages an isolated TapoCameraService instance per configured camera_id."""
 
-    def __init__(self) -> None:
+    def __init__(self, data_dir: Path) -> None:
         self._lock = threading.Lock()
+        self.data_dir = data_dir
         self._services: Dict[str, TapoCameraService] = {}
 
     def get_service(self, camera_id: Optional[str] = None) -> TapoCameraService:
@@ -696,7 +697,7 @@ class CameraManager:
         with self._lock:
             svc = self._services.get(key)
             if svc is None:
-                svc = TapoCameraService()
+                svc = TapoCameraService(data_dir=self.data_dir)
                 self._services[key] = svc
             return svc
 
@@ -735,8 +736,9 @@ class CameraManager:
 class CameraManager:
     """Manages an isolated TapoCameraService instance per configured camera_id."""
 
-    def __init__(self) -> None:
+    def __init__(self, data_dir: Path) -> None:
         self._lock = threading.Lock()
+        self.data_dir = data_dir
         self._services: Dict[str, TapoCameraService] = {}
 
     def get_service(self, camera_id: Optional[str] = None) -> TapoCameraService:
@@ -744,7 +746,7 @@ class CameraManager:
         with self._lock:
             svc = self._services.get(key)
             if svc is None:
-                svc = TapoCameraService()
+                svc = TapoCameraService(data_dir=self.data_dir)
                 self._services[key] = svc
             return svc
 
