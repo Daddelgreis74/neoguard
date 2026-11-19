@@ -682,6 +682,29 @@ class TapoCameraService:
         host = (camera_cfg.get("host") or "").strip()
         if not host:
             return {"online": False, "model": "TP-Link Tapo C200", "privacy_mode": self._privacy_enabled}
+
+
+class CameraManager:
+    """Manages an isolated TapoCameraService instance per configured camera_id."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._services: Dict[str, TapoCameraService] = {}
+
+    def get_service(self, camera_id: Optional[str] = None) -> TapoCameraService:
+        key = camera_id or "cam_1"
+        with self._lock:
+            svc = self._services.get(key)
+            if svc is None:
+                svc = TapoCameraService()
+                self._services[key] = svc
+            return svc
+
+    def remove_service(self, camera_id: str) -> None:
+        with self._lock:
+            svc = self._services.pop(camera_id, None)
+        if svc is not None:
+            svc.stop_reader()
         try:
             resp = self._onvif_request(
                 camera_cfg,
@@ -707,3 +730,26 @@ class TapoCameraService:
                 "detail": str(exc),
             }
         return {"online": False, "model": "TP-Link Tapo C200", "privacy_mode": self._privacy_enabled}
+
+
+class CameraManager:
+    """Manages an isolated TapoCameraService instance per configured camera_id."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._services: Dict[str, TapoCameraService] = {}
+
+    def get_service(self, camera_id: Optional[str] = None) -> TapoCameraService:
+        key = camera_id or "cam_1"
+        with self._lock:
+            svc = self._services.get(key)
+            if svc is None:
+                svc = TapoCameraService()
+                self._services[key] = svc
+            return svc
+
+    def remove_service(self, camera_id: str) -> None:
+        with self._lock:
+            svc = self._services.pop(camera_id, None)
+        if svc is not None:
+            svc.stop_reader()

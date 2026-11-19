@@ -148,3 +148,62 @@ def test_snapshot_endpoint(client: TestClient):
     assert res.status_code == 200
     assert res.headers["content-type"] == "image/jpeg"
     assert len(res.content) > 1000
+
+
+def test_multi_camera_crud_and_48h_retention(client: TestClient):
+    # Initially 1 camera exists; deleting the last camera must fail
+    cams = client.get("/api/cameras").json()["cameras"]
+    assert len(cams) == 1
+    assert client.delete(f"/api/cameras/{cams[0]['id']}").status_code == 400
+
+    # Add second camera
+    add_res = client.post(
+        "/api/cameras",
+        json={"name": "Wohnzimmer", "host": "192.168.178.102", "tracking_speed": 2.2},
+    )
+    assert add_res.status_code == 200
+    cam2 = add_res.json()["camera"]
+    assert cam2["name"] == "Wohnzimmer"
+
+    # Update second camera preset names
+    upd_res = client.put(
+        f"/api/cameras/{cam2['id']}",
+        json={"preset_names": {"1": "Sofa", "2": "Terrasse", "3": "Esstisch"}},
+    )
+    assert upd_res.status_code == 200
+    assert upd_res.json()["camera"]["preset_names"]["1"] == "Sofa"
+
+    # 48h retention pruning removes expired events & snapshots
+    from datetime import datetime, timedelta, timezone
+
+    old_snap = store.snapshots_dir / "old_test.jpg"
+    old_snap.write_bytes(b"old")
+    old_ev = store.add_event(
+        person_name="Unbekannt",
+        person_id=None,
+        confidence=0.2,
+        greeting_text="",
+        audio_sent=False,
+        snapshot_filename="old_test.jpg",
+        event_type="unknown_person",
+        camera_id=cam2["id"],
+        camera_name="Wohnzimmer",
+    )
+    old_ev["timestamp"] = (datetime.now(timezone.utc) - timedelta(hours=49)).isoformat()
+    fresh_ev = store.add_event(
+        person_name="Unbekannt",
+        person_id=None,
+        confidence=0.3,
+        greeting_text="",
+        audio_sent=False,
+        event_type="unknown_person",
+        camera_id=cam2["id"],
+        camera_name="Wohnzimmer",
+    )
+    events = client.get("/api/events").json()["events"]
+    assert len(events) == 1
+    assert events[0]["id"] == fresh_ev["id"]
+    assert not old_snap.exists()
+
+    # Delete second camera succeeds
+    assert client.delete(f"/api/cameras/{cam2['id']}").status_code == 200

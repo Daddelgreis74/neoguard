@@ -63,7 +63,7 @@ class RoomGuardWorker:
     def __init__(
         self,
         store: ConfigStore,
-        camera_service: TapoCameraService,
+        camera_service: Any,
         face_service: LocalFaceService,
         tts_service: LocalTTSService,
     ) -> None:
@@ -74,11 +74,16 @@ class RoomGuardWorker:
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._last_unknown_greet_ts: float = 0.0
-        self._last_person_seen_ts: float = 0.0
+        self._last_person_seen_by_cam: Dict[str, float] = {}
         self._last_known_seen_ts: float = 0.0
-        self._at_home_preset: bool = True
+        self._at_home_by_cam: Dict[str, bool] = {}
         self._prev_motion_gray: Optional[np.ndarray] = None
         self._unknown_streak: int = 0
+
+    def _cam_service(self, camera_id: Optional[str]) -> TapoCameraService:
+        if hasattr(self.camera, "get_service"):
+            return self.camera.get_service(camera_id)
+        return self.camera
 
     def check_cooldown_expired(self, last_greeted_iso: Optional[str], cooldown_minutes: int) -> bool:
         if not last_greeted_iso or cooldown_minutes <= 0:
@@ -96,18 +101,24 @@ class RoomGuardWorker:
         self,
         frame_bgr: np.ndarray,
         force_greet: bool = False,
+        camera_cfg: Optional[Dict[str, Any]] = None,
+        cam_service: Optional[TapoCameraService] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Detect faces in frame_bgr, match against enrolled persons, and trigger greeting if cooldown allows.
+        Detect faces in frame_bgr, match against enrolled persons, and log recognition events.
         Returns list of recognition results for all detected faces.
         """
         raw_cfg = self.store.get_raw_config()
-        camera_cfg = raw_cfg["camera"]
+        camera_cfg = camera_cfg or raw_cfg["camera"]
+        cam_id = str(camera_cfg.get("id") or "cam_1")
+        cam_name = str(camera_cfg.get("name") or "Kamera 1")
+        cam_svc = cam_service or self._cam_service(cam_id)
         guard_cfg = raw_cfg["guard"]
         persons = raw_cfg["persons"]
 
-        self.camera.set_ai_overlay_enabled(bool(guard_cfg.get("ai_overlay", True)))
-        track_speed = float(guard_cfg.get("tracking_speed", 1.4))
+        cam_svc.set_ai_overlay_enabled(bool(guard_cfg.get("ai_overlay", True)))
+        auto_track = bool(camera_cfg.get("auto_tracking", guard_cfg.get("auto_tracking", True)))
+        track_speed = float(camera_cfg.get("tracking_speed", guard_cfg.get("tracking_speed", 1.4)))
 
         # Stage 1: Neural Person Detection via local YOLOv8n ONNX
         yolo_people = self.face.detect_people_yolo(frame_bgr, conf_threshold=0.45)
@@ -117,11 +128,11 @@ class RoomGuardWorker:
         if yolo_people is not None:
             if not yolo_people and not force_greet:
                 self._unknown_streak = 0
-                self.camera.update_ai_overlay(frame_bgr.shape, [], body_bbox=None)
+                cam_svc.update_ai_overlay(frame_bgr.shape, [], body_bbox=None)
                 return []
 
             if yolo_people:
-                self._last_person_seen_ts = datetime.now(timezone.utc).timestamp()
+                self._last_person_seen_by_cam[cam_id] = datetime.now(timezone.utc).timestamp()
                 body_bbox = yolo_people[0]["bbox"]
 
                 # Stage 2: Search for faces ONLY inside detected YOLOv8n persons (with 2.0x AI Zoom!)
@@ -137,19 +148,19 @@ class RoomGuardWorker:
 
                 if not detections:
                     # Person detected by YOLOv8n (e.g. sideways/back-turned): track body smoothly!
-                    if guard_cfg.get("auto_tracking", True):
-                        moved = self.camera.track_face_in_frame(
+                    if auto_track:
+                        moved = cam_svc.track_face_in_frame(
                             camera_cfg, body_bbox, frame_bgr.shape, speed_multiplier=track_speed
                         )
                         if moved:
-                            self._at_home_preset = False
-                    self.camera.update_ai_overlay(frame_bgr.shape, [], body_bbox=body_bbox)
+                            self._at_home_by_cam[cam_id] = False
+                    cam_svc.update_ai_overlay(frame_bgr.shape, [], body_bbox=body_bbox)
                     return []
             else:
                 # force_greet=True fallback when no person box triggered
                 detections = self.face.detect_and_embed(frame_bgr)
                 if not detections:
-                    self.camera.update_ai_overlay(frame_bgr.shape, [], body_bbox=None)
+                    cam_svc.update_ai_overlay(frame_bgr.shape, [], body_bbox=None)
                     return []
         else:
             # Fallback if YOLOv8n model is missing
@@ -159,19 +170,19 @@ class RoomGuardWorker:
             self._prev_motion_gray = cur_gray
             detections = self.face.detect_and_embed(frame_bgr)
             if not detections:
-                self.camera.update_ai_overlay(frame_bgr.shape, [], body_bbox=None)
+                cam_svc.update_ai_overlay(frame_bgr.shape, [], body_bbox=None)
                 return []
 
-        self._last_person_seen_ts = datetime.now(timezone.utc).timestamp()
+        self._last_person_seen_by_cam[cam_id] = datetime.now(timezone.utc).timestamp()
 
         # Auto-Tracking: follow the largest detected face smoothly via ONVIF PTZ
-        if guard_cfg.get("auto_tracking", True) and detections:
+        if auto_track and detections:
             primary_det = max(detections, key=lambda d: d["bbox"][2] * d["bbox"][3])
-            moved = self.camera.track_face_in_frame(
+            moved = cam_svc.track_face_in_frame(
                 camera_cfg, primary_det["bbox"], frame_bgr.shape, speed_multiplier=track_speed
             )
             if moved:
-                self._at_home_preset = False
+                self._at_home_by_cam[cam_id] = False
 
         threshold = float(guard_cfg.get("similarity_threshold", 0.38))
         default_cooldown = int(guard_cfg.get("cooldown_minutes", 120))
@@ -238,34 +249,10 @@ class RoomGuardWorker:
 
                 audio_sent = False
                 if can_greet:
-                    snap_name = f"event_{uuid.uuid4().hex[:8]}.jpg"
-                    snap_path = self.store.snapshots_dir / snap_name
-                    cv2.imwrite(str(snap_path), annotated)
-
-                    tts_res = self.tts.speak_on_camera(
-                        text=greeting_text,
-                        camera_cfg=camera_cfg,
-                        voice_name=voice_name,
-                        go2rtc_url=go2rtc_url,
-                        volume_percent=volume_pct,
-                    )
-                    audio_sent = bool(tts_res.get("ok"))
-
-                    self.store.update_person(
-                        p_id, {"last_seen": now_iso, "last_greeted": now_iso}
-                    )
-                    self.store.add_event(
-                        person_name=p_name,
-                        person_id=p_id,
-                        confidence=sim_score,
-                        greeting_text=greeting_text,
-                        audio_sent=audio_sent,
-                        snapshot_filename=snap_name,
-                        event_type="greeting",
-                    )
-
+                    # Bekannte Personen sind OK: nur last_seen aktualisieren, kein Snapshot/Event speichern
+                    self.store.update_person(p_id, {"last_seen": now_iso})
                     if guard_cfg.get("auto_privacy_after_greeting"):
-                        self.camera.set_privacy_mode(camera_cfg, True)
+                        cam_svc.set_privacy_mode(camera_cfg, True)
                 else:
                     self.store.update_person(p_id, {"last_seen": now_iso})
 
@@ -325,22 +312,16 @@ class RoomGuardWorker:
                     snap_path = self.store.snapshots_dir / snap_name
                     cv2.imwrite(str(snap_path), annotated)
 
-                    tts_res = self.tts.speak_on_camera(
-                        text=greeting_text,
-                        camera_cfg=camera_cfg,
-                        voice_name=voice_name,
-                        go2rtc_url=go2rtc_url,
-                        volume_percent=volume_pct,
-                    )
-                    audio_sent = bool(tts_res.get("ok"))
                     self.store.add_event(
                         person_name="Unbekannt",
                         person_id=None,
                         confidence=sim_score,
-                        greeting_text=greeting_text,
-                        audio_sent=audio_sent,
+                        greeting_text="",
+                        audio_sent=False,
                         snapshot_filename=snap_name,
                         event_type="unknown_person",
+                        camera_id=cam_id,
+                        camera_name=cam_name,
                     )
 
                 overlay_faces.append(
@@ -364,49 +345,57 @@ class RoomGuardWorker:
                     }
                 )
 
-        self.camera.update_ai_overlay(frame_bgr.shape, overlay_faces, body_bbox=None)
+        cam_svc.update_ai_overlay(frame_bgr.shape, overlay_faces, body_bbox=None)
         return outcomes
 
     async def _loop(self) -> None:
-        logger.info("RoomGuard background monitoring loop started.")
+        logger.info("NeoGuard multi-camera monitoring loop started.")
         while self._running:
+            interval = 2.0
             try:
                 raw_cfg = self.store.get_raw_config()
                 guard_cfg = raw_cfg["guard"]
-                camera_cfg = raw_cfg["camera"]
+                cameras = [c for c in raw_cfg.get("cameras", []) if c.get("enabled", True)]
                 interval = max(1.0, float(guard_cfg.get("detection_interval_sec", 2.0)))
 
                 if guard_cfg.get("enabled", True) and is_within_active_hours(
                     guard_cfg.get("active_hours_start", "06:00"),
                     guard_cfg.get("active_hours_end", "23:00"),
                 ):
-                    if guard_cfg.get("auto_tracking", True):
+                    if any(c.get("auto_tracking", True) for c in cameras):
                         interval = min(interval, 0.12)
 
-                    frame = await asyncio.to_thread(
-                        self.camera.capture_frame,
-                        camera_cfg,
-                        camera_cfg.get("stream_quality", "stream1"),
-                    )
-                    if frame is not None:
-                        await asyncio.to_thread(self.analyze_and_greet_frame, frame, False)
+                    for cam_cfg in cameras:
+                        cam_id = str(cam_cfg.get("id") or "cam_1")
+                        cam_svc = self._cam_service(cam_id)
+                        frame = await asyncio.to_thread(
+                            cam_svc.capture_frame,
+                            cam_cfg,
+                            cam_cfg.get("stream_quality", "stream1"),
+                        )
+                        if frame is not None:
+                            await asyncio.to_thread(
+                                self.analyze_and_greet_frame, frame, False, cam_cfg, cam_svc
+                            )
 
-                    # Return to Preset 1 (home/door) after no person seen for configured delay
-                    if (
-                        guard_cfg.get("auto_tracking", True)
-                        and guard_cfg.get("tracking_return_home", True)
-                        and not self._at_home_preset
-                        and self._last_person_seen_ts > 0
-                    ):
-                        idle_sec = datetime.now(timezone.utc).timestamp() - self._last_person_seen_ts
-                        home_delay = float(guard_cfg.get("tracking_home_delay_sec", 20))
-                        if idle_sec >= home_delay:
-                            await asyncio.to_thread(self.camera.goto_preset, camera_cfg, "1")
-                            self._at_home_preset = True
+                        # Return to Preset 1 (home/door) after no person seen for configured delay
+                        last_seen = self._last_person_seen_by_cam.get(cam_id, 0.0)
+                        at_home = self._at_home_by_cam.get(cam_id, True)
+                        if (
+                            cam_cfg.get("auto_tracking", True)
+                            and cam_cfg.get("tracking_return_home", True)
+                            and not at_home
+                            and last_seen > 0
+                        ):
+                            idle_sec = datetime.now(timezone.utc).timestamp() - last_seen
+                            home_delay = float(cam_cfg.get("tracking_home_delay_sec", 20))
+                            if idle_sec >= home_delay:
+                                await asyncio.to_thread(cam_svc.goto_preset, cam_cfg, "1")
+                                self._at_home_by_cam[cam_id] = True
             except Exception as exc:
                 logger.debug("Guard loop iteration warning: %s", exc)
 
-            await asyncio.sleep(interval if "interval" in locals() else 2.0)
+            await asyncio.sleep(interval)
 
     def start(self) -> None:
         if not self._running:

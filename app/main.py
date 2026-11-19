@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app import __version__
-from app.camera_service import TapoCameraService
+from app.camera_service import CameraManager, TapoCameraService
 from app.config import ConfigStore
 from app.face_service import LocalFaceService
 from app.guard_worker import RoomGuardWorker, format_greeting_template
@@ -33,12 +33,13 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
 PUBLIC_DIR = Path(__file__).resolve().parent.parent / "public"
 
 store = ConfigStore(data_dir=DATA_DIR)
-camera_service = TapoCameraService(data_dir=store.data_dir)
+camera_manager = CameraManager()
+camera_service = camera_manager.get_service("cam_1")
 face_service = LocalFaceService(models_dir=store.models_dir)
 tts_service = LocalTTSService(models_dir=store.models_dir)
 guard_worker = RoomGuardWorker(
     store=store,
-    camera_service=camera_service,
+    camera_service=camera_manager,
     face_service=face_service,
     tts_service=tts_service,
 )
@@ -47,9 +48,9 @@ guard_worker = RoomGuardWorker(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     raw_cfg = store.get_raw_config()
-    camera_service.sync_go2rtc_config(
-        raw_cfg["camera"], go2rtc_url=raw_cfg["guard"].get("go2rtc_url", "http://127.0.0.1:1984")
-    )
+    go2rtc_url = raw_cfg["guard"].get("go2rtc_url", "http://127.0.0.1:1984")
+    for cam in raw_cfg.get("cameras", []):
+        camera_manager.get_service(cam.get("id")).sync_go2rtc_config(cam, go2rtc_url=go2rtc_url)
     if os.environ.get("DISABLE_BACKGROUND_WORKER") != "1":
         # Non-blocking background check for ONNX models
         asyncio.create_task(asyncio.to_thread(face_service.ensure_models_downloaded))
@@ -69,6 +70,8 @@ app = FastAPI(
 # -------------------- Pydantic Schemas --------------------
 
 class CameraSettingsUpdate(BaseModel):
+    name: Optional[str] = None
+    enabled: Optional[bool] = None
     host: Optional[str] = None
     rtsp_user: Optional[str] = None
     rtsp_pass: Optional[str] = None
@@ -78,6 +81,11 @@ class CameraSettingsUpdate(BaseModel):
     stream_quality: Optional[str] = None
     preview_stream: Optional[str] = None
     ptz_step: Optional[int] = None
+    auto_tracking: Optional[bool] = None
+    tracking_speed: Optional[float] = None
+    tracking_return_home: Optional[bool] = None
+    tracking_home_delay_sec: Optional[int] = None
+    preset_names: Optional[Dict[str, str]] = None
 
 
 class GuardSettingsUpdate(BaseModel):
@@ -119,19 +127,23 @@ class PersonUpdate(BaseModel):
 class PTZRequest(BaseModel):
     direction: str
     step: Optional[int] = None
+    camera_id: Optional[str] = None
 
 
 class PrivacyRequest(BaseModel):
     enabled: bool
+    camera_id: Optional[str] = None
 
 
 class HardwareControlRequest(BaseModel):
     control: str
     value: Any = None
+    camera_id: Optional[str] = None
 
 
 class PresetRequest(BaseModel):
     preset_id: str
+    camera_id: Optional[str] = None
 
 
 class SpeakRequest(BaseModel):
@@ -268,11 +280,18 @@ def get_health() -> Dict[str, Any]:
     }
 
 
+def _mask_camera(cam: Dict[str, Any]) -> Dict[str, Any]:
+    masked = dict(cam)
+    masked["rtsp_pass"] = "••••••••" if masked.get("rtsp_pass") else ""
+    masked["cloud_password"] = "••••••••" if masked.get("cloud_password") else ""
+    return masked
+
+
 @app.get("/api/config")
 def get_config() -> Dict[str, Any]:
     cfg = store.get_config(mask_secrets=True)
-    cfg["camera"]["rtsp_pass"] = "••••••••" if cfg["camera"].get("rtsp_pass") else ""
-    cfg["camera"]["cloud_password"] = "••••••••" if cfg["camera"].get("cloud_password") else ""
+    cfg["cameras"] = [_mask_camera(c) for c in cfg.get("cameras", [])]
+    cfg["camera"] = cfg["cameras"][0] if cfg["cameras"] else _mask_camera(cfg["camera"])
     cfg["system"] = {
         "version": __version__,
         "face_engine": face_service.engine_name,
@@ -281,18 +300,50 @@ def get_config() -> Dict[str, Any]:
     return cfg
 
 
-@app.put("/api/config/camera")
-def update_camera_config(payload: CameraSettingsUpdate) -> Dict[str, Any]:
-    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
-    updated = store.update_camera(updates)
+@app.get("/api/cameras")
+def list_cameras() -> Dict[str, Any]:
+    return {"cameras": [_mask_camera(c) for c in store.list_cameras()]}
+
+
+@app.post("/api/cameras")
+def create_camera(payload: CameraSettingsUpdate) -> Dict[str, Any]:
+    data = {k: v for k, v in payload.model_dump().items() if v is not None}
+    created = store.add_camera(data)
     raw_cfg = store.get_raw_config()
-    camera_service.sync_go2rtc_config(
-        raw_cfg["camera"], go2rtc_url=raw_cfg["guard"].get("go2rtc_url", "http://127.0.0.1:1984")
+    camera_manager.get_service(created["id"]).sync_go2rtc_config(
+        created, go2rtc_url=raw_cfg["guard"].get("go2rtc_url", "http://127.0.0.1:1984")
     )
-    masked = dict(updated)
-    masked["rtsp_pass"] = "••••••••" if masked.get("rtsp_pass") else ""
-    masked["cloud_password"] = "••••••••" if masked.get("cloud_password") else ""
-    return {"ok": True, "camera": masked}
+    return {"ok": True, "camera": _mask_camera(created)}
+
+
+@app.put("/api/cameras/{camera_id}")
+def update_camera_by_id(camera_id: str, payload: CameraSettingsUpdate) -> Dict[str, Any]:
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    updated = store.update_camera(updates, camera_id=camera_id)
+    raw_cfg = store.get_raw_config()
+    camera_manager.get_service(updated["id"]).sync_go2rtc_config(
+        updated, go2rtc_url=raw_cfg["guard"].get("go2rtc_url", "http://127.0.0.1:1984")
+    )
+    return {"ok": True, "camera": _mask_camera(updated)}
+
+
+@app.delete("/api/cameras/{camera_id}")
+def delete_camera_by_id(camera_id: str) -> Dict[str, Any]:
+    if not store.delete_camera(camera_id):
+        raise HTTPException(status_code=400, detail="Mindestens eine Kamera muss erhalten bleiben.")
+    camera_manager.remove_service(camera_id)
+    return {"ok": True}
+
+
+@app.put("/api/config/camera")
+def update_camera_config(payload: CameraSettingsUpdate, camera_id: Optional[str] = None) -> Dict[str, Any]:
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    updated = store.update_camera(updates, camera_id=camera_id)
+    raw_cfg = store.get_raw_config()
+    camera_manager.get_service(updated["id"]).sync_go2rtc_config(
+        updated, go2rtc_url=raw_cfg["guard"].get("go2rtc_url", "http://127.0.0.1:1984")
+    )
+    return {"ok": True, "camera": _mask_camera(updated)}
 
 
 @app.put("/api/config/guard")
@@ -300,20 +351,21 @@ def update_guard_config(payload: GuardSettingsUpdate) -> Dict[str, Any]:
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     updated = store.update_guard(updates)
     if "ai_overlay" in updated:
-        camera_service.set_ai_overlay_enabled(bool(updated["ai_overlay"]))
+        for cam in store.list_cameras():
+            camera_manager.get_service(cam.get("id")).set_ai_overlay_enabled(bool(updated["ai_overlay"]))
     return {"ok": True, "guard": updated}
 
 
 @app.get("/api/camera/status")
-def get_camera_status() -> Dict[str, Any]:
-    raw_cfg = store.get_raw_config()
-    return camera_service.get_camera_status(raw_cfg["camera"])
+def get_camera_status(camera_id: Optional[str] = None) -> Dict[str, Any]:
+    cam = store.get_camera(camera_id)
+    return camera_manager.get_service(cam.get("id")).get_camera_status(cam)
 
 
 @app.get("/api/camera/snapshot.jpg")
-def get_camera_snapshot() -> Response:
-    raw_cfg = store.get_raw_config()
-    frame = camera_service.get_snapshot_or_placeholder(raw_cfg["camera"])
+def get_camera_snapshot(camera_id: Optional[str] = None) -> Response:
+    cam = store.get_camera(camera_id)
+    frame = camera_manager.get_service(cam.get("id")).get_snapshot_or_placeholder(cam)
     ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
     if not ok:
         raise HTTPException(status_code=500, detail="Snapshot encoding failed")
@@ -321,64 +373,67 @@ def get_camera_snapshot() -> Response:
 
 
 @app.get("/api/camera/stream.mjpg")
-def get_camera_mjpeg_stream() -> StreamingResponse:
+def get_camera_mjpeg_stream(camera_id: Optional[str] = None) -> StreamingResponse:
+    cam = store.get_camera(camera_id)
+    cid = cam.get("id")
     return StreamingResponse(
-        camera_service.mjpeg_generator(lambda: store.get_raw_config()["camera"]),
+        camera_manager.get_service(cid).mjpeg_generator(lambda: store.get_camera(cid)),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
 
 @app.post("/api/camera/ptz")
 def move_camera_ptz(payload: PTZRequest) -> Dict[str, Any]:
-    raw_cfg = store.get_raw_config()
-    return camera_service.move_ptz(raw_cfg["camera"], payload.direction, payload.step)
+    cam = store.get_camera(payload.camera_id)
+    return camera_manager.get_service(cam.get("id")).move_ptz(cam, payload.direction, payload.step)
 
 
 @app.post("/api/camera/ptz/start")
 def start_camera_ptz(payload: PTZRequest) -> Dict[str, Any]:
-    raw_cfg = store.get_raw_config()
-    return camera_service.start_ptz_continuous(raw_cfg["camera"], payload.direction)
+    cam = store.get_camera(payload.camera_id)
+    return camera_manager.get_service(cam.get("id")).start_ptz_continuous(cam, payload.direction)
 
 
 @app.post("/api/camera/ptz/stop")
-def stop_camera_ptz() -> Dict[str, Any]:
-    raw_cfg = store.get_raw_config()
-    return camera_service.stop_ptz(raw_cfg["camera"])
+def stop_camera_ptz(camera_id: Optional[str] = None) -> Dict[str, Any]:
+    cam = store.get_camera(camera_id)
+    return camera_manager.get_service(cam.get("id")).stop_ptz(cam)
 
 
 @app.post("/api/camera/privacy")
 def toggle_camera_privacy(payload: PrivacyRequest) -> Dict[str, Any]:
-    raw_cfg = store.get_raw_config()
-    return camera_service.set_privacy_mode(raw_cfg["camera"], payload.enabled)
+    cam = store.get_camera(payload.camera_id)
+    return camera_manager.get_service(cam.get("id")).set_privacy_mode(cam, payload.enabled)
 
 
 @app.get("/api/camera/hardware")
-def get_camera_hardware_state() -> Dict[str, Any]:
-    raw_cfg = store.get_raw_config()
-    return camera_service.get_hardware_state(raw_cfg["camera"])
+def get_camera_hardware_state(camera_id: Optional[str] = None) -> Dict[str, Any]:
+    cam = store.get_camera(camera_id)
+    return camera_manager.get_service(cam.get("id")).get_hardware_state(cam)
 
 
 @app.post("/api/camera/hardware")
 def set_camera_hardware(payload: HardwareControlRequest) -> Dict[str, Any]:
+    cam = store.get_camera(payload.camera_id)
     raw_cfg = store.get_raw_config()
     if payload.control == "siren":
         return tts_service.play_siren_on_camera(
-            camera_cfg=raw_cfg["camera"],
+            camera_cfg=cam,
             go2rtc_url=raw_cfg["guard"].get("go2rtc_url", "http://127.0.0.1:1984"),
         )
-    return camera_service.set_hardware_control(raw_cfg["camera"], payload.control, payload.value)
+    return camera_manager.get_service(cam.get("id")).set_hardware_control(cam, payload.control, payload.value)
 
 
 @app.post("/api/camera/preset")
 def goto_camera_preset(payload: PresetRequest) -> Dict[str, Any]:
-    raw_cfg = store.get_raw_config()
-    return camera_service.goto_preset(raw_cfg["camera"], payload.preset_id)
+    cam = store.get_camera(payload.camera_id)
+    return camera_manager.get_service(cam.get("id")).goto_preset(cam, payload.preset_id)
 
 
 @app.post("/api/camera/preset/save")
 def save_camera_preset(payload: PresetRequest) -> Dict[str, Any]:
-    raw_cfg = store.get_raw_config()
-    return camera_service.save_preset(raw_cfg["camera"], payload.preset_id)
+    cam = store.get_camera(payload.camera_id)
+    return camera_manager.get_service(cam.get("id")).save_preset(cam, payload.preset_id)
 
 
 # -------------------- Persons & Face Enrollment --------------------
@@ -445,13 +500,13 @@ async def upload_person_photo(person_id: str, file: UploadFile = File(...)) -> D
 
 
 @app.post("/api/persons/{person_id}/capture")
-def capture_person_photo_from_camera(person_id: str) -> Dict[str, Any]:
+def capture_person_photo_from_camera(person_id: str, camera_id: Optional[str] = None) -> Dict[str, Any]:
     person = store.get_person(person_id)
     if not person:
         raise HTTPException(status_code=404, detail="Person nicht gefunden.")
 
-    raw_cfg = store.get_raw_config()
-    frame = camera_service.capture_frame(raw_cfg["camera"], stream="stream1")
+    cam = store.get_camera(camera_id)
+    frame = camera_manager.get_service(cam.get("id")).capture_frame(cam, stream="stream1")
     if frame is None:
         raise HTTPException(
             status_code=503,
@@ -522,16 +577,17 @@ def get_last_tts_wav() -> FileResponse:
 # -------------------- Manual Scan & Events --------------------
 
 @app.post("/api/guard/scan-now")
-def trigger_manual_scan() -> Dict[str, Any]:
-    raw_cfg = store.get_raw_config()
-    frame = camera_service.capture_frame(raw_cfg["camera"], stream="stream1")
+def trigger_manual_scan(camera_id: Optional[str] = None) -> Dict[str, Any]:
+    cam = store.get_camera(camera_id)
+    svc = camera_manager.get_service(cam.get("id"))
+    frame = svc.capture_frame(cam, stream="stream1")
     if frame is None:
         return {
             "ok": False,
             "error": "Kein Live-RTSP-Frame von der Tapo C200 empfangen. Prüfe IP & Kamera-Konto.",
             "detections": [],
         }
-    outcomes = guard_worker.analyze_and_greet_frame(frame, force_greet=True)
+    outcomes = guard_worker.analyze_and_greet_frame(frame, force_greet=True, camera_cfg=cam, cam_service=svc)
     return {"ok": True, "detections": outcomes}
 
 

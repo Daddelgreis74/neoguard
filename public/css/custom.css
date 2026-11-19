@@ -450,3 +450,55 @@ body {
 #personsChevronIcon.rotated {
   transform: rotate(180deg);
 }
+
+/* Multi-Camera Pills, Grid & Settings Tabs */
+.cam-pill-btn {
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.cam-pill-btn.active {
+  background: var(--accent-gradient);
+  color: #ffffff !important;
+  border-color: transparent;
+}
+
+.multi-cam-card {
+  background: var(--surface-subtle);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.15s ease;
+}
+
+.multi-cam-card:hover {
+  border-color: var(--glass-border-highlight);
+  transform: translateY(-2px);
+}
+
+.multi-cam-card img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+  background: #050811;
+}
+
+.neo-settings-tabs .nav-link {
+  color: var(--text-secondary);
+  background: var(--surface-subtle);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+}
+
+.neo-settings-tabs .nav-link.active {
+  background: var(--accent-gradient);
+  color: #ffffff;
+  border-color: transparent;
+}

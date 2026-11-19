@@ -16,18 +16,32 @@ FACES_DIR = DATA_DIR / "faces"
 SNAPSHOTS_DIR = DATA_DIR / "snapshots"
 MODELS_DIR = DATA_DIR / "models"
 
-DEFAULT_CONFIG: Dict[str, Any] = {
-    "camera": {
-        "host": os.environ.get("TAPO_HOST", "192.168.178.50"),
-        "rtsp_user": os.environ.get("TAPO_RTSP_USER", ""),
-        "rtsp_pass": os.environ.get("TAPO_RTSP_PASS", ""),
-        "cloud_password": os.environ.get("TAPO_CLOUD_PASS", ""),
-        "rtsp_port": int(os.environ.get("TAPO_RTSP_PORT", "554")),
-        "onvif_port": int(os.environ.get("TAPO_ONVIF_PORT", "2020")),
-        "stream_quality": "stream1",
-        "preview_stream": "stream2",
-        "ptz_step": 15,
+DEFAULT_CAMERA: Dict[str, Any] = {
+    "id": "cam_1",
+    "name": "Kamera 1",
+    "enabled": True,
+    "host": os.environ.get("TAPO_HOST", "192.168.178.50"),
+    "rtsp_user": os.environ.get("TAPO_RTSP_USER", ""),
+    "rtsp_pass": os.environ.get("TAPO_RTSP_PASS", ""),
+    "cloud_password": os.environ.get("TAPO_CLOUD_PASS", ""),
+    "rtsp_port": int(os.environ.get("TAPO_RTSP_PORT", "554")),
+    "onvif_port": int(os.environ.get("TAPO_ONVIF_PORT", "2020")),
+    "stream_quality": "stream1",
+    "preview_stream": "stream2",
+    "ptz_step": 15,
+    "auto_tracking": True,
+    "tracking_speed": 1.4,
+    "tracking_return_home": True,
+    "tracking_home_delay_sec": 20,
+    "preset_names": {
+        "1": "Tür / Eingang",
+        "2": "Raum-Mitte",
+        "3": "Schreibtisch",
     },
+}
+
+DEFAULT_CONFIG: Dict[str, Any] = {
+    "cameras": [json.loads(json.dumps(DEFAULT_CAMERA))],
     "guard": {
         "enabled": True,
         "detection_interval_sec": 2.0,
@@ -36,7 +50,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "similarity_threshold": 0.38,
         "default_greeting": "{greeting_time}, {name}! Willkommen zurück.",
         "unknown_greeting": "{greeting_time}! Bitte beachte, dass dieser Raum überwacht wird.",
-        "greet_unknown": False,
+        "greet_unknown": True,
+        "event_retention_hours": 48,
         "active_hours_start": "06:00",
         "active_hours_end": "23:00",
         "auto_privacy_after_greeting": False,
@@ -88,14 +103,45 @@ class ConfigStore:
         ):
             folder.mkdir(parents=True, exist_ok=True)
 
+    def _merge_camera(self, raw_cam: Dict[str, Any], idx: int = 1) -> Dict[str, Any]:
+        cam = json.loads(json.dumps(DEFAULT_CAMERA))
+        cam["id"] = str(raw_cam.get("id") or f"cam_{idx}")
+        cam["name"] = str(raw_cam.get("name") or f"Kamera {idx}")
+        for k, v in raw_cam.items():
+            if k == "preset_names" and isinstance(v, dict):
+                cam["preset_names"].update({str(pk): str(pv) for pk, pv in v.items()})
+            elif k in cam and v is not None:
+                cam[k] = v
+        return cam
+
     def _load_config(self) -> Dict[str, Any]:
         if self.config_file.exists():
             try:
                 with open(self.config_file, "r", encoding="utf-8") as f:
                     loaded = json.load(f)
                 merged = json.loads(json.dumps(DEFAULT_CONFIG))
-                merged["camera"].update(loaded.get("camera", {}))
                 merged["guard"].update(loaded.get("guard", {}))
+                raw_cams = loaded.get("cameras")
+                if isinstance(raw_cams, list) and raw_cams:
+                    merged["cameras"] = [
+                        self._merge_camera(c, idx=i + 1)
+                        for i, c in enumerate(raw_cams)
+                        if isinstance(c, dict)
+                    ]
+                elif isinstance(loaded.get("camera"), dict):
+                    # Migrate legacy single-camera config cleanly
+                    legacy = dict(loaded["camera"])
+                    legacy_guard = loaded.get("guard", {})
+                    for gk in (
+                        "auto_tracking",
+                        "tracking_speed",
+                        "tracking_return_home",
+                        "tracking_home_delay_sec",
+                        "preset_names",
+                    ):
+                        if gk in legacy_guard and gk not in legacy:
+                            legacy[gk] = legacy_guard[gk]
+                    merged["cameras"] = [self._merge_camera(legacy, idx=1)]
                 merged["persons"] = loaded.get("persons", [])
                 merged["auth"].update(loaded.get("auth", {}))
                 self._ensure_auth_initialized(merged)
@@ -201,26 +247,83 @@ class ConfigStore:
                 p["photo_count"] = len(p.get("photos", []))
                 p.pop("embeddings", None)
             if mask_secrets:
-                if cfg["camera"].get("rtsp_pass"):
-                    cfg["camera"]["rtsp_pass_set"] = True
-                if cfg["camera"].get("cloud_password"):
-                    cfg["camera"]["cloud_password_set"] = True
+                for cam in cfg.get("cameras", []):
+                    if cam.get("rtsp_pass"):
+                        cam["rtsp_pass_set"] = True
+                    if cam.get("cloud_password"):
+                        cam["cloud_password_set"] = True
+            cfg["camera"] = cfg["cameras"][0] if cfg.get("cameras") else json.loads(json.dumps(DEFAULT_CAMERA))
             return cfg
 
     def get_raw_config(self) -> Dict[str, Any]:
         with self._lock:
-            return json.loads(json.dumps(self._config))
+            cfg = json.loads(json.dumps(self._config))
+            cfg["camera"] = cfg["cameras"][0] if cfg.get("cameras") else json.loads(json.dumps(DEFAULT_CAMERA))
+            return cfg
 
-    def update_camera(self, updates: Dict[str, Any]) -> Dict[str, Any]:
+    def list_cameras(self) -> List[Dict[str, Any]]:
         with self._lock:
+            return json.loads(json.dumps(self._config.get("cameras", [])))
+
+    def get_camera(self, camera_id: Optional[str] = None) -> Dict[str, Any]:
+        with self._lock:
+            cams = self._config.get("cameras", [])
+            if camera_id:
+                for c in cams:
+                    if c.get("id") == camera_id:
+                        return json.loads(json.dumps(c))
+            if cams:
+                return json.loads(json.dumps(cams[0]))
+            return json.loads(json.dumps(DEFAULT_CAMERA))
+
+    def add_camera(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        with self._lock:
+            cams = self._config.setdefault("cameras", [])
+            cam_id = f"cam_{str(uuid.uuid4())[:6]}"
+            payload = dict(data)
+            payload["id"] = cam_id
+            if not payload.get("name"):
+                payload["name"] = f"Kamera {len(cams) + 1}"
+            cam = self._merge_camera(payload, idx=len(cams) + 1)
+            cams.append(cam)
+            self._save_config_unlocked(self._config)
+            return json.loads(json.dumps(cam))
+
+    def update_camera(self, updates: Dict[str, Any], camera_id: Optional[str] = None) -> Dict[str, Any]:
+        with self._lock:
+            cams = self._config.setdefault("cameras", [])
+            if not cams:
+                cams.append(json.loads(json.dumps(DEFAULT_CAMERA)))
+            target = None
+            if camera_id:
+                for c in cams:
+                    if c.get("id") == camera_id:
+                        target = c
+                        break
+            if target is None:
+                target = cams[0]
             for key, val in updates.items():
-                if key in self._config["camera"] and val is not None:
+                if key == "preset_names" and isinstance(val, dict):
+                    target.setdefault("preset_names", {}).update({str(k): str(v) for k, v in val.items()})
+                elif key in target and val is not None and key != "id":
                     # Keep existing password if masked placeholder is sent
                     if key in ("rtsp_pass", "cloud_password") and val == "••••••••":
                         continue
-                    self._config["camera"][key] = val
+                    target[key] = val
             self._save_config_unlocked(self._config)
-            return dict(self._config["camera"])
+            return json.loads(json.dumps(target))
+
+    def delete_camera(self, camera_id: str) -> bool:
+        with self._lock:
+            cams = self._config.get("cameras", [])
+            if len(cams) <= 1:
+                return False
+            new_cams = [c for c in cams if c.get("id") != camera_id]
+            if len(new_cams) == len(cams):
+                return False
+            self._config["cameras"] = new_cams
+            self._save_config_unlocked(self._config)
+            return True
 
     def update_guard(self, updates: Dict[str, Any]) -> Dict[str, Any]:
         with self._lock:
@@ -345,6 +448,40 @@ class ConfigStore:
             self._save_config_unlocked(self._config)
             return len(self._config["persons"]) < before
 
+    def _prune_expired_events_unlocked(self, retention_hours: int = 48) -> bool:
+        if retention_hours <= 0 or not self._events:
+            return False
+        cutoff = datetime.now(timezone.utc).timestamp() - (retention_hours * 3600)
+        kept: List[Dict[str, Any]] = []
+        changed = False
+        for ev in self._events:
+            keep = True
+            ts_str = ev.get("timestamp")
+            if ts_str:
+                try:
+                    dt = datetime.fromisoformat(ts_str)
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    if dt.timestamp() < cutoff:
+                        keep = False
+                except Exception:
+                    pass
+            if keep:
+                kept.append(ev)
+            else:
+                changed = True
+                snap_url = ev.get("snapshot_url") or ""
+                if snap_url.startswith("/api/snapshots/"):
+                    snap_file = self.snapshots_dir / Path(snap_url).name
+                    if snap_file.exists():
+                        try:
+                            snap_file.unlink()
+                        except OSError:
+                            pass
+        if changed:
+            self._events = kept
+        return changed
+
     def add_event(
         self,
         person_name: str,
@@ -354,12 +491,16 @@ class ConfigStore:
         audio_sent: bool,
         snapshot_filename: Optional[str] = None,
         event_type: str = "greeting",
+        camera_id: Optional[str] = None,
+        camera_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         with self._lock:
             event = {
                 "id": str(uuid.uuid4())[:8],
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "event_type": event_type,
+                "camera_id": camera_id,
+                "camera_name": camera_name,
                 "person_id": person_id,
                 "person_name": person_name,
                 "confidence": round(float(confidence), 3),
@@ -379,11 +520,16 @@ class ConfigStore:
                             except OSError:
                                 pass
                 self._events = self._events[:200]
+            retention = int(self._config.get("guard", {}).get("event_retention_hours", 48))
+            self._prune_expired_events_unlocked(retention)
             self._save_events_unlocked()
             return event
 
     def list_events(self, limit: int = 50) -> List[Dict[str, Any]]:
         with self._lock:
+            retention = int(self._config.get("guard", {}).get("event_retention_hours", 48))
+            if self._prune_expired_events_unlocked(retention):
+                self._save_events_unlocked()
             return list(self._events[:limit])
 
     def clear_events(self) -> None:

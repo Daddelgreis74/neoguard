@@ -1,6 +1,20 @@
 (() => {
   let currentConfig = null;
   let privacyEnabled = false;
+  let selectedCameraId = localStorage.getItem("neoguard_selected_cam") || null;
+  let settingsCameraId = null;
+  let multiGridMode = false;
+
+  const getCameras = () => currentConfig?.cameras || (currentConfig?.camera ? [currentConfig.camera] : []);
+  const getActiveCamera = () => {
+    const cams = getCameras();
+    return cams.find((c) => c.id === selectedCameraId) || cams[0] || {};
+  };
+  const getSettingsCamera = () => {
+    const cams = getCameras();
+    return cams.find((c) => c.id === settingsCameraId) || getActiveCamera();
+  };
+  const camQuery = (camId = selectedCameraId) => (camId ? `camera_id=${encodeURIComponent(camId)}` : "");
 
   let statusTimer = null;
   const showStatus = (msg, type = "info") => {
@@ -51,6 +65,152 @@
     initTheme();
   });
 
+  // -------------------- Multi-Camera Selector, Grid & Settings Helper --------------------
+  const updateLiveCameraUI = (cam) => {
+    if (!cam) return;
+    document.getElementById("activeCameraTitle").textContent = cam.name || "Kamera 1";
+    document.getElementById("cameraIpSubtitle").textContent =
+      `IP: ${cam.host || "Nicht gesetzt"} · RTSP Port ${cam.rtsp_port || 554} · ONVIF Port ${cam.onvif_port || 2020}`;
+
+    const autoTrack = cam.auto_tracking !== false;
+    const trackSpan = document.getElementById("autoTrackState");
+    if (trackSpan) {
+      trackSpan.textContent = autoTrack ? "AN" : "AUS";
+      trackSpan.className = autoTrack ? "text-success fw-bold" : "text-secondary";
+    }
+
+    const defaultPresets = { "1": "Tür / Eingang", "2": "Raum-Mitte", "3": "Schreibtisch" };
+    const presetNames = { ...defaultPresets, ...(cam.preset_names || {}) };
+    ["1", "2", "3"].forEach((idx) => {
+      const labelEl = document.getElementById(`presetLabel${idx}`);
+      if (labelEl) labelEl.textContent = presetNames[idx] || defaultPresets[idx];
+    });
+
+    const streamImg = document.getElementById("liveStreamImg");
+    if (streamImg && !multiGridMode) {
+      const targetUrl = `/api/camera/stream.mjpg?${camQuery(cam.id)}`;
+      if (!streamImg.getAttribute("src") || !streamImg.getAttribute("src").includes(`camera_id=${encodeURIComponent(cam.id || "")}`)) {
+        streamImg.src = `${targetUrl}&t=${Date.now()}`;
+      }
+    }
+  };
+
+  const renderMultiGrid = () => {
+    const grid = document.getElementById("multiCameraGrid");
+    if (!grid || multiGridMode === false) return;
+    const cams = getCameras();
+    grid.innerHTML = cams
+      .map(
+        (c) => `
+      <div class="col-md-6">
+        <div class="multi-cam-card" data-grid-cam="${escapeHtml(c.id)}">
+          <img src="/api/camera/stream.mjpg?camera_id=${encodeURIComponent(c.id)}&t=${Date.now()}" alt="${escapeHtml(c.name)}">
+          <div class="d-flex justify-content-between align-items-center px-3 py-2">
+            <span class="fw-semibold small">${escapeHtml(c.name)}</span>
+            <span class="badge ${c.enabled !== false ? "text-bg-success" : "text-bg-secondary"}">${c.enabled !== false ? "Aktiv" : "Pausiert"}</span>
+          </div>
+        </div>
+      </div>`
+      )
+      .join("");
+    grid.querySelectorAll("[data-grid-cam]").forEach((card) => {
+      card.addEventListener("click", () => {
+        selectedCameraId = card.getAttribute("data-grid-cam");
+        localStorage.setItem("neoguard_selected_cam", selectedCameraId);
+        setMultiGridMode(false);
+        renderCameraSelector();
+        updateLiveCameraUI(getActiveCamera());
+      });
+    });
+  };
+
+  const setMultiGridMode = (enabled) => {
+    multiGridMode = enabled;
+    const grid = document.getElementById("multiCameraGrid");
+    const single = document.getElementById("singleCameraView");
+    const btn = document.getElementById("btnToggleMultiGrid");
+    if (grid) grid.classList.toggle("d-none", !enabled);
+    if (single) single.classList.toggle("d-none", enabled);
+    if (btn) {
+      btn.classList.toggle("btn-neo-primary", enabled);
+      btn.classList.toggle("btn-glass", !enabled);
+    }
+    if (enabled) {
+      renderMultiGrid();
+    } else {
+      updateLiveCameraUI(getActiveCamera());
+    }
+  };
+
+  document.getElementById("btnToggleMultiGrid")?.addEventListener("click", () => {
+    setMultiGridMode(!multiGridMode);
+  });
+
+  const renderCameraSelector = () => {
+    const bar = document.getElementById("cameraSelectorBar");
+    if (!bar) return;
+    const cams = getCameras();
+    if (!cams.some((c) => c.id === selectedCameraId) && cams.length) {
+      selectedCameraId = cams[0].id;
+    }
+    bar.innerHTML = cams
+      .map(
+        (c) => `
+      <button type="button" class="btn btn-glass btn-sm cam-pill-btn ${!multiGridMode && c.id === selectedCameraId ? "active" : ""}" data-select-cam="${escapeHtml(c.id)}">
+        <i class="fa-solid fa-video me-1"></i>${escapeHtml(c.name)}
+      </button>`
+      )
+      .join("");
+    bar.querySelectorAll("[data-select-cam]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectedCameraId = btn.getAttribute("data-select-cam");
+        localStorage.setItem("neoguard_selected_cam", selectedCameraId);
+        if (multiGridMode) setMultiGridMode(false);
+        renderCameraSelector();
+        updateLiveCameraUI(getActiveCamera());
+      });
+    });
+  };
+
+  const populateSettingsCamera = (camId) => {
+    const cams = getCameras();
+    const cam = cams.find((c) => c.id === camId) || cams[0] || {};
+    settingsCameraId = cam.id || "cam_1";
+
+    const sel = document.getElementById("settingsCamSelect");
+    if (sel) {
+      sel.innerHTML = cams
+        .map((c) => `<option value="${escapeHtml(c.id)}" ${c.id === settingsCameraId ? "selected" : ""}>${escapeHtml(c.name)} (${escapeHtml(c.host || "–")})</option>`)
+        .join("");
+    }
+    const delBtn = document.getElementById("btnDeleteCamera");
+    if (delBtn) delBtn.disabled = cams.length <= 1;
+
+    document.getElementById("cfgCamName").value = cam.name || "Kamera 1";
+    document.getElementById("cfgCamEnabled").checked = cam.enabled !== false;
+    document.getElementById("cfgHost").value = cam.host || "";
+    document.getElementById("cfgRtspPort").value = cam.rtsp_port || 554;
+    document.getElementById("cfgOnvifPort").value = cam.onvif_port || 2020;
+    document.getElementById("cfgRtspUser").value = cam.rtsp_user || "";
+    document.getElementById("cfgRtspPass").value = cam.rtsp_pass || "";
+    document.getElementById("cfgCloudPass").value = cam.cloud_password || "";
+    document.getElementById("cfgAutoTracking").checked = cam.auto_tracking !== false;
+    document.getElementById("cfgTrackingReturnHome").checked = cam.tracking_return_home !== false;
+
+    const speedVal = cam.tracking_speed ?? 1.4;
+    const slider = document.getElementById("trackingSpeedSlider");
+    const speedBadge = document.getElementById("trackingSpeedVal");
+    if (slider) slider.value = speedVal;
+    if (speedBadge) speedBadge.textContent = `${Number(speedVal).toFixed(1)}x`;
+
+    const defaultPresets = { "1": "Tür / Eingang", "2": "Raum-Mitte", "3": "Schreibtisch" };
+    const presetNames = { ...defaultPresets, ...(cam.preset_names || {}) };
+    ["1", "2", "3"].forEach((idx) => {
+      const inputEl = document.getElementById(`cfgPresetName${idx}`);
+      if (inputEl) inputEl.value = presetNames[idx] || defaultPresets[idx];
+    });
+  };
+
   // -------------------- Load Config, Persons & Events --------------------
   const loadConfig = async () => {
     try {
@@ -58,14 +218,23 @@
       const data = await res.json();
       currentConfig = data;
 
-      const cam = data.camera || {};
+      const cams = getCameras();
+      if (!cams.some((c) => c.id === selectedCameraId) && cams.length) {
+        selectedCameraId = cams[0].id;
+      }
+      if (!cams.some((c) => c.id === settingsCameraId)) {
+        settingsCameraId = selectedCameraId;
+      }
+
       const guard = data.guard || {};
       const sys = data.system || {};
 
-      document.getElementById("cameraIpSubtitle").textContent =
-        `IP: ${cam.host || "Nicht gesetzt"} · RTSP Port ${cam.rtsp_port || 554} · ONVIF Port ${cam.onvif_port || 2020}`;
+      renderCameraSelector();
+      updateLiveCameraUI(getActiveCamera());
+      if (multiGridMode) renderMultiGrid();
+
       document.getElementById("engineBadge").textContent =
-        `100% Lokal (${sys.face_engine || "OpenCV ONNX"} & Piper TTS)`;
+        `100% Lokal (${sys.face_engine || "OpenCV ONNX"})`;
 
       const badge = document.getElementById("guardActiveBadge");
       if (guard.enabled) {
@@ -76,13 +245,8 @@
         badge.innerHTML = `<i class="fa-solid fa-pause me-1"></i>Überwachung Pausiert`;
       }
 
-      // Populate Settings Modal
-      document.getElementById("cfgHost").value = cam.host || "";
-      document.getElementById("cfgRtspPort").value = cam.rtsp_port || 554;
-      document.getElementById("cfgOnvifPort").value = cam.onvif_port || 2020;
-      document.getElementById("cfgRtspUser").value = cam.rtsp_user || "";
-      document.getElementById("cfgRtspPass").value = cam.rtsp_pass || "";
-      document.getElementById("cfgCloudPass").value = cam.cloud_password || "";
+      // Populate Settings Modal (3 Tabs)
+      populateSettingsCamera(settingsCameraId);
 
       document.getElementById("cfgGuardEnabled").value = String(Boolean(guard.enabled));
       document.getElementById("cfgInterval").value = guard.detection_interval_sec ?? 2.0;
@@ -90,22 +254,12 @@
       document.getElementById("cfgThreshold").value = guard.similarity_threshold ?? 0.38;
       document.getElementById("cfgHoursStart").value = guard.active_hours_start || "06:00";
       document.getElementById("cfgHoursEnd").value = guard.active_hours_end || "23:00";
-      document.getElementById("cfgVoice").value = guard.tts_voice || "de_DE-thorsten-medium";
-      document.getElementById("cfgDefaultGreeting").value = guard.default_greeting || "";
-      document.getElementById("cfgUnknownGreeting").value = guard.unknown_greeting || "";
       document.getElementById("cfgAutoPrivacy").checked = Boolean(guard.auto_privacy_after_greeting);
       document.getElementById("cfgGreetUnknown").checked = Boolean(guard.greet_unknown);
-      const autoTrack = guard.auto_tracking !== false;
-      document.getElementById("cfgAutoTracking").checked = autoTrack;
-      document.getElementById("cfgTrackingReturnHome").checked = guard.tracking_return_home !== false;
+
       const authUserInput = document.getElementById("cfgAuthNewUser");
       if (authUserInput && data.auth?.username) {
         authUserInput.value = data.auth.username;
-      }
-      const trackSpan = document.getElementById("autoTrackState");
-      if (trackSpan) {
-        trackSpan.textContent = autoTrack ? "AN" : "AUS";
-        trackSpan.className = autoTrack ? "text-success fw-bold" : "text-secondary";
       }
       const aiOverlay = guard.ai_overlay !== false;
       const overlaySpan = document.getElementById("aiOverlayState");
@@ -113,26 +267,6 @@
         overlaySpan.textContent = aiOverlay ? "AN" : "AUS";
         overlaySpan.className = aiOverlay ? "text-success fw-bold" : "text-secondary";
       }
-      const speedVal = guard.tracking_speed ?? 1.4;
-      const slider = document.getElementById("trackingSpeedSlider");
-      const speedBadge = document.getElementById("trackingSpeedVal");
-      if (slider) slider.value = speedVal;
-      if (speedBadge) speedBadge.textContent = `${Number(speedVal).toFixed(1)}x`;
-      const volVal = guard.tts_volume ?? 100;
-      const volSlider = document.getElementById("ttsVolumeSlider");
-      const volBadge = document.getElementById("ttsVolumeVal");
-      if (volSlider) volSlider.value = volVal;
-      if (volBadge) volBadge.textContent = `${volVal}%`;
-
-      const defaultPresets = { "1": "Tür / Eingang", "2": "Raum-Mitte", "3": "Schreibtisch" };
-      const presetNames = { ...defaultPresets, ...(guard.preset_names || {}) };
-      ["1", "2", "3"].forEach((idx) => {
-        const labelEl = document.getElementById(`presetLabel${idx}`);
-        const inputEl = document.getElementById(`cfgPresetName${idx}`);
-        const name = presetNames[idx] || defaultPresets[idx];
-        if (labelEl) labelEl.textContent = name;
-        if (inputEl) inputEl.value = name;
-      });
 
       renderPersons(data.persons || []);
     } catch (err) {
@@ -245,11 +379,11 @@
         .map((ev) => {
           const snapHtml = ev.snapshot_url
             ? `<a href="${escapeHtml(ev.snapshot_url)}" target="_blank"><img src="${escapeHtml(ev.snapshot_url)}" class="event-snap" alt="Snapshot"></a>`
-            : `<div class="event-snap d-flex align-items-center justify-content-center bg-dark text-info"><i class="fa-solid fa-volume-high"></i></div>`;
+            : `<div class="event-snap d-flex align-items-center justify-content-center bg-dark text-info"><i class="fa-solid fa-user-check"></i></div>`;
 
-          const statusBadge = ev.audio_sent
-            ? `<span class="badge text-bg-success">Lautsprecher OK</span>`
-            : `<span class="badge text-bg-secondary">Lokal / Offline</span>`;
+          const camBadge = ev.camera_name
+            ? `<span class="badge bg-info bg-opacity-25 text-info">${escapeHtml(ev.camera_name)}</span>`
+            : `<span class="badge text-bg-secondary">Erkannt</span>`;
 
           return `
             <div class="event-item d-flex align-items-center justify-content-between gap-3">
@@ -260,11 +394,10 @@
                     ${escapeHtml(ev.person_name)}
                     <span class="text-secondary fw-normal ms-1">(${Math.round((ev.confidence || 0) * 100)}%)</span>
                   </div>
-                  <div class="small text-info">"${escapeHtml(ev.greeting_text)}"</div>
                   <div class="text-secondary" style="font-size: 0.72rem;">${formatTime(ev.timestamp)}</div>
                 </div>
               </div>
-              <div>${statusBadge}</div>
+              <div>${camBadge}</div>
             </div>
           `;
         })
@@ -282,7 +415,7 @@
     if (!ptzActive) return;
     ptzActive = false;
     try {
-      await fetch("/api/camera/ptz/stop", { method: "POST" });
+      await fetch(`/api/camera/ptz/stop?${camQuery()}`, { method: "POST" });
     } catch {}
   };
 
@@ -294,7 +427,7 @@
       await fetch("/api/camera/ptz/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ direction }),
+        body: JSON.stringify({ direction, camera_id: selectedCameraId }),
       });
     });
     btn.addEventListener("pointerup", stopPtz);
@@ -310,7 +443,7 @@
       const res = await fetch("/api/camera/preset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preset_id }),
+        body: JSON.stringify({ preset_id, camera_id: selectedCameraId }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -328,7 +461,7 @@
       const res = await fetch("/api/camera/preset/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preset_id }),
+        body: JSON.stringify({ preset_id, camera_id: selectedCameraId }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -357,32 +490,34 @@
     }
   });
 
-  // Auto-Tracking Quick Toggle
+  // Auto-Tracking Quick Toggle (per active camera)
   document.getElementById("btnAutoTrackToggle")?.addEventListener("click", async () => {
-    const currentlyOn = currentConfig?.guard?.auto_tracking !== false;
+    const cam = getActiveCamera();
+    const currentlyOn = cam.auto_tracking !== false;
     const nextVal = !currentlyOn;
-    const res = await fetch("/api/config/guard", {
+    const res = await fetch(`/api/cameras/${encodeURIComponent(cam.id || "cam_1")}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ auto_tracking: nextVal }),
     });
     if (res.ok) {
       showStatus(
-        nextVal ? "KI-Personen-Verfolgung (Auto-Tracking) aktiviert." : "Auto-Tracking pausiert.",
+        nextVal ? `Auto-Tracking für ${cam.name} aktiviert.` : `Auto-Tracking für ${cam.name} pausiert.`,
         "info"
       );
       loadConfig();
     }
   });
 
-  // Tracking Speed Scale (- ||||||||||||| +)
+  // Tracking Speed Scale (- ||||||||||||| +) in Settings per selected settings camera
   const saveTrackingSpeed = async (val) => {
     const clamped = Math.max(0.3, Math.min(5.0, Math.round(val * 10) / 10));
     const slider = document.getElementById("trackingSpeedSlider");
     const badge = document.getElementById("trackingSpeedVal");
     if (slider) slider.value = clamped;
     if (badge) badge.textContent = `${clamped.toFixed(1)}x`;
-    await fetch("/api/config/guard", {
+    const camId = settingsCameraId || selectedCameraId || "cam_1";
+    await fetch(`/api/cameras/${encodeURIComponent(camId)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tracking_speed: clamped }),
@@ -411,7 +546,7 @@
     const res = await fetch("/api/camera/privacy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled: privacyEnabled }),
+      body: JSON.stringify({ enabled: privacyEnabled, camera_id: selectedCameraId }),
     });
     const data = await res.json();
     showStatus(
@@ -434,7 +569,7 @@
       const res = await fetch("/api/camera/hardware", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ control: "siren", value: true }),
+        body: JSON.stringify({ control: "siren", value: true, camera_id: settingsCameraId || selectedCameraId }),
       });
       const data = await res.json();
       showStatus(data.ok ? "Alarm-Sirene über Kamera-Lautsprecher ausgelöst!" : `Sirene Fehler: ${data.error}`, data.ok ? "warning" : "danger");
@@ -448,7 +583,7 @@
     const res = await fetch("/api/camera/hardware", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ control: "led", value: hwLedOn }),
+      body: JSON.stringify({ control: "led", value: hwLedOn, camera_id: settingsCameraId || selectedCameraId }),
     });
     const data = await res.json();
     if (data.ok) {
@@ -466,7 +601,7 @@
     const res = await fetch("/api/camera/hardware", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ control: "night_vision", value: mode }),
+      body: JSON.stringify({ control: "night_vision", value: mode, camera_id: settingsCameraId || selectedCameraId }),
     });
     const data = await res.json();
     if (data.ok) {
@@ -481,7 +616,7 @@
   // Refresh snapshot
   document.getElementById("btnRefreshSnap")?.addEventListener("click", () => {
     const img = document.getElementById("liveStreamImg");
-    if (img) img.src = `/api/camera/stream.mjpg?t=${Date.now()}`;
+    if (img) img.src = `/api/camera/stream.mjpg?${camQuery()}&t=${Date.now()}`;
   });
 
   // Digital Zoom (1.0x - 4.0x) + Mouse Wheel + Drag-to-Pan
@@ -559,8 +694,8 @@
 
   // Scan Now
   document.getElementById("btnScanNow")?.addEventListener("click", async () => {
-    showStatus("Prüfe 1080p-Frame der Tapo C200 auf bekannte Gesichter...", "info");
-    const res = await fetch("/api/guard/scan-now", { method: "POST" });
+    showStatus("Prüfe Live-Frame auf bekannte & unbekannte Personen...", "info");
+    const res = await fetch(`/api/guard/scan-now?${camQuery()}`, { method: "POST" });
     const data = await res.json();
     if (!data.ok) {
       showStatus(data.error || "Kein Frame verfügbar.", "warning");
@@ -803,7 +938,7 @@
   document.getElementById("btnEditCapturePhoto")?.addEventListener("click", () => {
     const pid = document.getElementById("editPersonId").value;
     if (!pid) return;
-    openCropEditorWithSrc(pid, `/api/camera/snapshot.jpg?t=${Date.now()}`);
+    openCropEditorWithSrc(pid, `/api/camera/snapshot.jpg?${camQuery()}&t=${Date.now()}`);
   });
 
   document.getElementById("inputEditUploadPhoto")?.addEventListener("change", (e) => {
@@ -868,7 +1003,7 @@
     const capBtn = e.target.closest("[data-capture-person]");
     if (capBtn) {
       const id = capBtn.getAttribute("data-capture-person");
-      openCropEditorWithSrc(id, `/api/camera/snapshot.jpg?t=${Date.now()}`);
+      openCropEditorWithSrc(id, `/api/camera/snapshot.jpg?${camQuery()}&t=${Date.now()}`);
     }
   });
 
@@ -882,16 +1017,66 @@
     }
   });
 
-  // Save Settings Form
+  // Settings Camera Selector, + Kamera, Delete Kamera
+  document.getElementById("settingsCamSelect")?.addEventListener("change", (e) => {
+    populateSettingsCamera(e.target.value);
+  });
+
+  document.getElementById("btnAddCamera")?.addEventListener("click", async () => {
+    const nextNum = getCameras().length + 1;
+    const res = await fetch("/api/cameras", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: `Kamera ${nextNum}`,
+        host: "192.168.178.50",
+        enabled: true,
+      }),
+    });
+    if (res.ok) {
+      const created = await res.json();
+      settingsCameraId = created.camera?.id || settingsCameraId;
+      showStatus(`Neue Kamera "${created.camera?.name}" angelegt.`, "success");
+      await loadConfig();
+    }
+  });
+
+  document.getElementById("btnDeleteCamera")?.addEventListener("click", async () => {
+    const cams = getCameras();
+    if (cams.length <= 1) return;
+    const camId = settingsCameraId || cams[0].id;
+    const res = await fetch(`/api/cameras/${encodeURIComponent(camId)}`, { method: "DELETE" });
+    if (res.ok) {
+      showStatus("Kamera entfernt.", "info");
+      settingsCameraId = null;
+      await loadConfig();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showStatus(err.detail || "Kamera konnte nicht gelöscht werden.", "warning");
+    }
+  });
+
+  // Save Settings Form (3 Tabs: Kameras, KI & Erkennung, Login)
   document.getElementById("settingsForm")?.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const targetCamId = settingsCameraId || selectedCameraId || "cam_1";
     const camPayload = {
+      name: document.getElementById("cfgCamName").value.trim() || "Kamera 1",
+      enabled: document.getElementById("cfgCamEnabled").checked,
       host: document.getElementById("cfgHost").value.trim(),
       rtsp_port: parseInt(document.getElementById("cfgRtspPort").value, 10) || 554,
       onvif_port: parseInt(document.getElementById("cfgOnvifPort").value, 10) || 2020,
       rtsp_user: document.getElementById("cfgRtspUser").value.trim(),
       rtsp_pass: document.getElementById("cfgRtspPass").value,
       cloud_password: document.getElementById("cfgCloudPass").value,
+      auto_tracking: document.getElementById("cfgAutoTracking").checked,
+      tracking_return_home: document.getElementById("cfgTrackingReturnHome").checked,
+      tracking_speed: parseFloat(document.getElementById("trackingSpeedSlider")?.value || "1.4"),
+      preset_names: {
+        "1": document.getElementById("cfgPresetName1")?.value.trim() || "Tür / Eingang",
+        "2": document.getElementById("cfgPresetName2")?.value.trim() || "Raum-Mitte",
+        "3": document.getElementById("cfgPresetName3")?.value.trim() || "Schreibtisch",
+      },
     };
 
     const guardPayload = {
@@ -901,23 +1086,11 @@
       similarity_threshold: parseFloat(document.getElementById("cfgThreshold").value) || 0.38,
       active_hours_start: document.getElementById("cfgHoursStart").value || "06:00",
       active_hours_end: document.getElementById("cfgHoursEnd").value || "23:00",
-      tts_voice: document.getElementById("cfgVoice").value,
-      default_greeting: document.getElementById("cfgDefaultGreeting").value.trim(),
-      unknown_greeting: document.getElementById("cfgUnknownGreeting").value.trim(),
       auto_privacy_after_greeting: document.getElementById("cfgAutoPrivacy").checked,
       greet_unknown: document.getElementById("cfgGreetUnknown").checked,
-      auto_tracking: document.getElementById("cfgAutoTracking").checked,
-      tracking_return_home: document.getElementById("cfgTrackingReturnHome").checked,
-      tts_volume: parseInt(document.getElementById("ttsVolumeSlider")?.value || "100", 10),
-      tracking_speed: parseFloat(document.getElementById("trackingSpeedSlider")?.value || "1.4"),
-      preset_names: {
-        "1": document.getElementById("cfgPresetName1")?.value.trim() || "Tür / Eingang",
-        "2": document.getElementById("cfgPresetName2")?.value.trim() || "Raum-Mitte",
-        "3": document.getElementById("cfgPresetName3")?.value.trim() || "Schreibtisch",
-      },
     };
 
-    await fetch("/api/config/camera", {
+    await fetch(`/api/cameras/${encodeURIComponent(targetCamId)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(camPayload),
@@ -972,10 +1145,6 @@
       loginSec.classList.remove("d-flex");
     }
     if (mainSec) mainSec.classList.remove("d-none");
-    const streamImg = document.getElementById("liveStreamImg");
-    if (streamImg && !streamImg.getAttribute("src")) {
-      streamImg.src = `/api/camera/stream.mjpg?t=${Date.now()}`;
-    }
     loadConfig();
     loadEvents();
     if (!eventsTimer) eventsTimer = setInterval(loadEvents, 5000);

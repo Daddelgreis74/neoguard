@@ -88,9 +88,25 @@
       <div class="col-lg-7">
         <!-- Live Camera & PTZ Panel -->
         <div class="glass-panel p-4 mb-4">
+          <!-- Multi-Camera Selector & Grid Toggle -->
+          <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary border-opacity-25 flex-wrap gap-2">
+            <div id="cameraSelectorBar" class="d-flex flex-wrap align-items-center gap-2">
+              <!-- Rendered by app.js -->
+            </div>
+            <button type="button" class="btn btn-glass btn-sm" id="btnToggleMultiGrid" title="Alle Kameras im Raster anzeigen">
+              <i class="fa-solid fa-table-cells-large text-info me-1"></i>Alle Kameras
+            </button>
+          </div>
+
+          <!-- Multi-Camera Grid View (hidden by default) -->
+          <div id="multiCameraGrid" class="row g-3 d-none mb-2">
+            <!-- Rendered by app.js -->
+          </div>
+
+          <div id="singleCameraView">
           <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <div>
-              <h5 class="fw-bold mb-0"><i class="fa-solid fa-video text-info me-2"></i>Tapo C200 Live-Ansicht</h5>
+              <h5 class="fw-bold mb-0"><i class="fa-solid fa-video text-info me-2"></i><span id="activeCameraTitle">Kamera 1</span> Live-Ansicht</h5>
               <small class="text-secondary" id="cameraIpSubtitle">IP: 192.168.178.50 · RTSP Port 554 / ONVIF 2020</small>
             </div>
             <div class="d-flex gap-2 flex-wrap">
@@ -172,6 +188,7 @@
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -363,168 +380,201 @@
         </div>
         <form id="settingsForm">
           <div class="modal-body">
-            <h6 class="fw-bold text-info mb-3">1. TP-Link Tapo C200 Verbindung</h6>
-            <div class="row g-3 mb-4">
-              <div class="col-md-6">
-                <label class="form-label small fw-semibold">Kamera IP-Adresse</label>
-                <input type="text" class="form-control" id="cfgHost" placeholder="192.168.178.50" required>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label small fw-semibold">RTSP Port</label>
-                <input type="number" class="form-control" id="cfgRtspPort" value="554">
-              </div>
-              <div class="col-md-3">
-                <label class="form-label small fw-semibold">ONVIF Port</label>
-                <input type="number" class="form-control" id="cfgOnvifPort" value="2020">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Kamera-Konto Benutzer (Tapo App)</label>
-                <input type="text" class="form-control" id="cfgRtspUser" placeholder="z. B. tapo_admin">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Kamera-Konto Passwort (RTSP)</label>
-                <input type="password" class="form-control" id="cfgRtspPass" placeholder="••••••••">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">TP-Link Cloud-Passwort (für 2-Wege-Audio/PTZ)</label>
-                <input type="password" class="form-control" id="cfgCloudPass" placeholder="Optional falls identisch">
-              </div>
-            </div>
+            <!-- Settings Navigation Tabs -->
+            <ul class="nav nav-pills neo-settings-tabs gap-2 mb-4" id="settingsTabNav" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tabCamerasBtn" data-bs-toggle="pill" data-bs-target="#tabCameras" type="button" role="tab">
+                  <i class="fa-solid fa-video me-1"></i>Kameras
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tabGuardBtn" data-bs-toggle="pill" data-bs-target="#tabGuard" type="button" role="tab">
+                  <i class="fa-solid fa-brain me-1"></i>KI &amp; Erkennung
+                </button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tabLoginBtn" data-bs-toggle="pill" data-bs-target="#tabLogin" type="button" role="tab">
+                  <i class="fa-solid fa-shield-halved me-1"></i>Login
+                </button>
+              </li>
+            </ul>
 
-            <h6 class="fw-bold text-info mb-3">2. Lokale KI-Erkennung & Begrüßung</h6>
-            <div class="row g-3">
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Überwachung aktiv</label>
-                <select class="form-select" id="cfgGuardEnabled">
-                  <option value="true">Aktiviert</option>
-                  <option value="false">Pausiert</option>
-                </select>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Prüf-Intervall (Sekunden)</label>
-                <input type="number" step="0.5" min="1" max="60" class="form-control" id="cfgInterval" value="2.0">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Standard-Cooldown (Minuten)</label>
-                <input type="number" min="0" max="1440" class="form-control" id="cfgCooldown" value="120">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Erkennungs-Schwelle (0.25 – 0.65)</label>
-                <input type="number" step="0.02" min="0.20" max="0.80" class="form-control" id="cfgThreshold" value="0.38">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Aktive Uhrzeit (Von – Bis)</label>
-                <div class="input-group">
-                  <input type="time" class="form-control" id="cfgHoursStart" value="06:00">
-                  <input type="time" class="form-control" id="cfgHoursEnd" value="23:00">
+            <div class="tab-content">
+              <!-- TAB 1: Kameras -->
+              <div class="tab-pane fade show active" id="tabCameras" role="tabpanel">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 p-3 rounded-4 mb-3" style="background: var(--surface-subtle); border: 1px solid var(--glass-border);">
+                  <div class="d-flex align-items-center gap-2 flex-grow-1">
+                    <label class="small fw-semibold text-nowrap mb-0">Kamera:</label>
+                    <select class="form-select form-select-sm" id="settingsCamSelect" style="max-width: 240px;"></select>
+                  </div>
+                  <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-neo-primary btn-sm" id="btnAddCamera">
+                      <i class="fa-solid fa-plus me-1"></i>Kamera +
+                    </button>
+                    <button type="button" class="btn btn-glass btn-sm text-danger" id="btnDeleteCamera" title="Gewählte Kamera entfernen">
+                      <i class="fa-solid fa-trash"></i>
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Offline Piper TTS Stimme</label>
-                <select class="form-select" id="cfgVoice">
-                  <option value="de_DE-thorsten-medium">Thorsten (Deutsch · Natürlich)</option>
-                  <option value="de_DE-kerstin-low">Kerstin (Deutsch · Schnell)</option>
-                </select>
-              </div>
-              <div class="col-md-8">
-                <label class="form-label small fw-semibold">Standard-Begrüßung für erkannte Personen</label>
-                <input type="text" class="form-control" id="cfgDefaultGreeting" value="{greeting_time}, {name}! Willkommen zurück.">
-              </div>
-              <div class="col-md-4 d-flex align-items-end">
-                <div class="form-check form-switch mb-2">
-                  <input class="form-check-input" type="checkbox" id="cfgAutoPrivacy">
-                  <label class="form-check-label small" for="cfgAutoPrivacy">Nach Begrüßung in Privacy-Mode</label>
-                </div>
-              </div>
-              <div class="col-md-8">
-                <label class="form-label small fw-semibold">Spruch für unbekannte Personen</label>
-                <input type="text" class="form-control" id="cfgUnknownGreeting" value="{greeting_time}! Bitte beachte, dass dieser Raum überwacht wird.">
-              </div>
-              <div class="col-md-4 d-flex align-items-end">
-                <div class="form-check form-switch mb-2">
-                  <input class="form-check-input" type="checkbox" id="cfgGreetUnknown">
-                  <label class="form-check-label small" for="cfgGreetUnknown">Auch Unbekannte ansprechen</label>
-                </div>
-              </div>
-              <div class="col-md-6 d-flex align-items-center mt-3">
-                <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" id="cfgAutoTracking" checked>
-                  <label class="form-check-label small fw-semibold" for="cfgAutoTracking">KI-Verfolgung (Auto-Tracking beim Laufen)</label>
-                </div>
-              </div>
-              <div class="col-md-6 d-flex align-items-center mt-3">
-                <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" id="cfgTrackingReturnHome" checked>
-                  <label class="form-check-label small" for="cfgTrackingReturnHome">Nach 20s ohne Person zurück zu Preset 1</label>
-                </div>
-              </div>
-              <div class="col-md-6 mt-3">
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                  <label class="form-label small fw-semibold mb-0"><i class="fa-solid fa-volume-low text-success me-1"></i>Lautstärke (TTS)</label>
-                  <span class="badge bg-success bg-opacity-25 text-success" id="ttsVolumeVal" style="min-width: 48px;">100%</span>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                  <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnVolMinus" title="Leiser"><i class="fa-solid fa-minus"></i></button>
-                  <input type="range" class="form-range flex-grow-1" id="ttsVolumeSlider" min="10" max="200" step="10" value="100">
-                  <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnVolPlus" title="Lauter"><i class="fa-solid fa-plus"></i></button>
-                </div>
-              </div>
-              <div class="col-md-6 mt-3">
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                  <label class="form-label small fw-semibold mb-0"><i class="fa-solid fa-gauge-high text-info me-1"></i>Tracking-Tempo</label>
-                  <span class="badge bg-info bg-opacity-25 text-info" id="trackingSpeedVal">1.4x</span>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                  <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnSpeedMinus" title="Langsamer"><i class="fa-solid fa-minus"></i></button>
-                  <input type="range" class="form-range flex-grow-1" id="trackingSpeedSlider" min="0.3" max="5.0" step="0.1" value="1.4">
-                  <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnSpeedPlus" title="Schneller"><i class="fa-solid fa-plus"></i></button>
-                </div>
-              </div>
-            </div>
 
-            <h6 class="fw-bold text-info mt-4 mb-3">3. Schnell-Positionen (Presets) &amp; Kamera-Hardware (TPAP)</h6>
-            <div class="row g-3 mb-3">
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Preset 1 Name</label>
-                <input type="text" class="form-control" id="cfgPresetName1" placeholder="Tür / Eingang" value="Tür / Eingang">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Preset 2 Name</label>
-                <input type="text" class="form-control" id="cfgPresetName2" placeholder="Raum-Mitte" value="Raum-Mitte">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Preset 3 Name</label>
-                <input type="text" class="form-control" id="cfgPresetName3" placeholder="Schreibtisch" value="Schreibtisch">
-              </div>
-              <div class="col-12">
-                <div class="d-flex flex-wrap align-items-center gap-2">
-                  <span class="small fw-semibold me-2"><i class="fa-solid fa-microchip text-info me-1"></i>Kamera-Hardware (TPAP):</span>
-                  <button type="button" class="btn btn-glass btn-sm" id="btnHardwareSiren" title="Kamera-Sirene kurz auslösen">
-                    <i class="fa-solid fa-bell text-danger me-1"></i>Sirene
-                  </button>
-                  <button type="button" class="btn btn-glass btn-sm" id="btnHardwareLed" title="Status-LED umschalten">
-                    <i class="fa-solid fa-lightbulb text-warning me-1"></i>LED: <span id="hwLedState">AN</span>
-                  </button>
-                  <button type="button" class="btn btn-glass btn-sm" id="btnHardwareNight" title="Nachtsicht umschalten (Auto / Ein / Aus)">
-                    <i class="fa-solid fa-moon text-info me-1"></i>IR: <span id="hwNightState">Auto</span>
-                  </button>
+                <div class="row g-3">
+                  <div class="col-md-8">
+                    <label class="form-label small fw-semibold">Kamera-Name (z. B. Flur, Wohnzimmer)</label>
+                    <input type="text" class="form-control" id="cfgCamName" placeholder="Kamera 1" required>
+                  </div>
+                  <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check form-switch mb-2">
+                      <input class="form-check-input" type="checkbox" id="cfgCamEnabled" checked>
+                      <label class="form-check-label small fw-semibold" for="cfgCamEnabled">Kamera aktiv</label>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-semibold">Kamera IP-Adresse</label>
+                    <input type="text" class="form-control" id="cfgHost" placeholder="192.168.178.50" required>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label small fw-semibold">RTSP Port</label>
+                    <input type="number" class="form-control" id="cfgRtspPort" value="554">
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label small fw-semibold">ONVIF Port</label>
+                    <input type="number" class="form-control" id="cfgOnvifPort" value="2020">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Kamera-Konto Benutzer</label>
+                    <input type="text" class="form-control" id="cfgRtspUser" placeholder="z. B. tapo_admin">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Kamera-Konto Passwort</label>
+                    <input type="password" class="form-control" id="cfgRtspPass" placeholder="••••••••">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-semibold">TP-Link Cloud-Passwort (PTZ/TPAP)</label>
+                    <input type="password" class="form-control" id="cfgCloudPass" placeholder="Optional falls identisch">
+                  </div>
+
+                  <div class="col-12 pt-2 border-top border-secondary border-opacity-25">
+                    <div class="row g-3 align-items-center">
+                      <div class="col-md-4">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" id="cfgAutoTracking" checked>
+                          <label class="form-check-label small fw-semibold" for="cfgAutoTracking">Auto-Tracking</label>
+                        </div>
+                      </div>
+                      <div class="col-md-4">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" id="cfgTrackingReturnHome" checked>
+                          <label class="form-check-label small" for="cfgTrackingReturnHome">Nach 20s zu Preset 1</label>
+                        </div>
+                      </div>
+                      <div class="col-md-4">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                          <label class="form-label small fw-semibold mb-0">Tracking-Tempo</label>
+                          <span class="badge bg-info bg-opacity-25 text-info" id="trackingSpeedVal">1.4x</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                          <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnSpeedMinus" title="Langsamer"><i class="fa-solid fa-minus"></i></button>
+                          <input type="range" class="form-range flex-grow-1" id="trackingSpeedSlider" min="0.3" max="5.0" step="0.1" value="1.4">
+                          <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnSpeedPlus" title="Schneller"><i class="fa-solid fa-plus"></i></button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-12 pt-2 border-top border-secondary border-opacity-25">
+                    <div class="row g-2">
+                      <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Preset 1 Name</label>
+                        <input type="text" class="form-control form-control-sm" id="cfgPresetName1" value="Tür / Eingang">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Preset 2 Name</label>
+                        <input type="text" class="form-control form-control-sm" id="cfgPresetName2" value="Raum-Mitte">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Preset 3 Name</label>
+                        <input type="text" class="form-control form-control-sm" id="cfgPresetName3" value="Schreibtisch">
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-12 pt-2 border-top border-secondary border-opacity-25">
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                      <span class="small fw-semibold me-2"><i class="fa-solid fa-microchip text-info me-1"></i>Kamera-Hardware (TPAP):</span>
+                      <button type="button" class="btn btn-glass btn-sm" id="btnHardwareSiren" title="Kamera-Sirene kurz auslösen">
+                        <i class="fa-solid fa-bell text-danger me-1"></i>Sirene
+                      </button>
+                      <button type="button" class="btn btn-glass btn-sm" id="btnHardwareLed" title="Status-LED umschalten">
+                        <i class="fa-solid fa-lightbulb text-warning me-1"></i>LED: <span id="hwLedState">AN</span>
+                      </button>
+                      <button type="button" class="btn btn-glass btn-sm" id="btnHardwareNight" title="Nachtsicht umschalten (Auto / Ein / Aus)">
+                        <i class="fa-solid fa-moon text-info me-1"></i>IR: <span id="hwNightState">Auto</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <h6 class="fw-bold text-info mt-4 mb-3">4. Login-Zugangsdaten ändern (optional)</h6>
-            <div class="row g-3">
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Aktuelles Passwort</label>
-                <input type="password" class="form-control" id="cfgAuthCurrentPass" placeholder="Nur bei Änderung">
+              <!-- TAB 2: KI & Erkennung -->
+              <div class="tab-pane fade" id="tabGuard" role="tabpanel">
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Überwachung global aktiv</label>
+                    <select class="form-select" id="cfgGuardEnabled">
+                      <option value="true">Aktiviert</option>
+                      <option value="false">Pausiert</option>
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Prüf-Intervall (Sekunden)</label>
+                    <input type="number" step="0.5" min="1" max="60" class="form-control" id="cfgInterval" value="2.0">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Ereignis-Cooldown (Minuten)</label>
+                    <input type="number" min="0" max="1440" class="form-control" id="cfgCooldown" value="120">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-semibold">Erkennungs-Schwelle (0.25 – 0.65)</label>
+                    <input type="number" step="0.02" min="0.20" max="0.80" class="form-control" id="cfgThreshold" value="0.38">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label small fw-semibold">Aktive Uhrzeit (Von – Bis)</label>
+                    <div class="input-group">
+                      <input type="time" class="form-control" id="cfgHoursStart" value="06:00">
+                      <input type="time" class="form-control" id="cfgHoursEnd" value="23:00">
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-check form-switch mt-2">
+                      <input class="form-check-input" type="checkbox" id="cfgGreetUnknown">
+                      <label class="form-check-label small fw-semibold" for="cfgGreetUnknown">Auch unbekannte Personen im Log erfassen</label>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-check form-switch mt-2">
+                      <input class="form-check-input" type="checkbox" id="cfgAutoPrivacy">
+                      <label class="form-check-label small fw-semibold" for="cfgAutoPrivacy">Nach Erkennung in Privacy-Mode</label>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Benutzername</label>
-                <input type="text" class="form-control" id="cfgAuthNewUser" placeholder="admin">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small fw-semibold">Neues Passwort</label>
-                <input type="password" class="form-control" id="cfgAuthNewPass" placeholder="Mind. 4 Zeichen">
+
+              <!-- TAB 3: Login -->
+              <div class="tab-pane fade" id="tabLogin" role="tabpanel">
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Aktuelles Passwort</label>
+                    <input type="password" class="form-control" id="cfgAuthCurrentPass" placeholder="Nur bei Änderung">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Benutzername</label>
+                    <input type="text" class="form-control" id="cfgAuthNewUser" placeholder="admin">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Neues Passwort</label>
+                    <input type="password" class="form-control" id="cfgAuthNewPass" placeholder="Mind. 4 Zeichen">
+                  </div>
+                </div>
               </div>
             </div>
           </div>
