@@ -323,7 +323,10 @@ def update_camera_by_id(camera_id: str, payload: CameraSettingsUpdate) -> Dict[s
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     updated = store.update_camera(updates, camera_id=camera_id)
     raw_cfg = store.get_raw_config()
-    camera_manager.get_service(updated["id"]).sync_go2rtc_config(
+    svc = camera_manager.get_service(updated["id"])
+    if not updated.get("enabled", True):
+        svc.stop_reader()
+    svc.sync_go2rtc_config(
         updated, go2rtc_url=raw_cfg["guard"].get("go2rtc_url", "http://127.0.0.1:1984")
     )
     return {"ok": True, "camera": _mask_camera(updated)}

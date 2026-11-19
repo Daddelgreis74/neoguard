@@ -116,7 +116,8 @@ class TapoCameraService:
 
     def _ensure_reader_running(self, camera_cfg: Dict[str, Any]) -> None:
         """Start or restart the persistent RTSP reader thread for smooth 15fps preview."""
-        if self._privacy_enabled:
+        if self._privacy_enabled or not camera_cfg.get("enabled", True):
+            self.stop_reader()
             return
         if not (camera_cfg.get("host") and camera_cfg.get("rtsp_user") and camera_cfg.get("rtsp_pass")):
             return
@@ -138,6 +139,9 @@ class TapoCameraService:
         self._reader_stop.set()
         if self._reader_thread is not None and self._reader_thread.is_alive():
             self._reader_thread.join(timeout=1.5)
+        with self._frame_lock:
+            self._last_frame = None
+            self._last_frame_ts = 0.0
 
     def _rtsp_reader_loop(self) -> None:
         """Keep one persistent RTSP connection open so frames are always ready with minimal latency."""
@@ -187,7 +191,8 @@ class TapoCameraService:
         ignore_backoff: bool = False,
     ) -> Optional[np.ndarray]:
         """Return latest frame from persistent RTSP reader or capture one-shot frame."""
-        if self._privacy_enabled:
+        if self._privacy_enabled or not camera_cfg.get("enabled", True):
+            self.stop_reader()
             return None
 
         self._ensure_reader_running(camera_cfg)
@@ -228,6 +233,9 @@ class TapoCameraService:
 
     def get_snapshot_or_placeholder(self, camera_cfg: Dict[str, Any]) -> np.ndarray:
         """Return recent cached frame, fresh RTSP frame, or an informative status placeholder image."""
+        if not camera_cfg.get("enabled", True):
+            self.stop_reader()
+            return self.render_placeholder_frame(camera_cfg)
         self._ensure_reader_running(camera_cfg)
         with self._frame_lock:
             if self._last_frame is not None and (time.time() - self._last_frame_ts) < 2.5:
@@ -236,13 +244,17 @@ class TapoCameraService:
         return self.render_placeholder_frame(camera_cfg)
 
     def render_placeholder_frame(self, camera_cfg: Dict[str, Any]) -> np.ndarray:
-        """Render a clean 16:9 dark Aurora status frame when camera stream is offline or in privacy mode."""
+        """Render a clean 16:9 dark Aurora status frame when camera stream is offline, disabled or in privacy mode."""
         img = np.zeros((360, 640, 3), dtype=np.uint8)
         for y in range(360):
             img[y, :] = (28 + y // 18, 18 + y // 24, 10 + y // 30)
 
         host = camera_cfg.get("host") or "Nicht konfiguriert"
-        if self._privacy_enabled:
+        if not camera_cfg.get("enabled", True):
+            title = "KAMERA DEAKTIVIERT / PAUSED"
+            sub = f"{camera_cfg.get('name') or 'Kamera'} ({host}) — Stream & KI gestoppt"
+            color = (148, 163, 184)
+        elif self._privacy_enabled:
             title = "PRIVATSPHAERE-MODUS AKTIV"
             sub = f"Tapo C200 ({host}) — Linse verdeckt"
             color = (128, 220, 56)
