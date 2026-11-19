@@ -178,20 +178,36 @@
 
       <!-- RIGHT COLUMN: Persons Enrollment & Event History -->
       <div class="col-lg-5">
-        <!-- Enrolled Persons Panel -->
+        <!-- Enrolled Persons Panel (Collapsible Slider + Compact Preview) -->
         <div class="glass-panel p-4 mb-4">
-          <div class="d-flex justify-content-between align-items-center mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
             <div>
-              <h5 class="fw-bold mb-0"><i class="fa-solid fa-users-viewfinder text-info me-2"></i>Bekannte Personen</h5>
-              <small class="text-secondary">Lokale Gesichts-Embeddings & persönliche Begrüßung</small>
+              <h5 class="fw-bold mb-0">
+                <i class="fa-solid fa-users-viewfinder text-info me-2"></i>Bekannte Personen
+                <span class="badge bg-info bg-opacity-25 text-info ms-1 align-middle" id="personsCountBadge" style="font-size: 0.72rem;">0</span>
+              </h5>
+              <small class="text-secondary">Lokale Gesichts-Embeddings &amp; persönliche Begrüßung</small>
             </div>
-            <button class="btn btn-neo-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#addPersonModal">
-              <i class="fa-solid fa-user-plus me-1"></i>Person +
-            </button>
+            <div class="d-flex align-items-center gap-2">
+              <button class="btn btn-neo-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#addPersonModal">
+                <i class="fa-solid fa-user-plus me-1"></i>Person +
+              </button>
+              <button type="button" class="btn btn-glass btn-sm px-2" id="btnTogglePersons" title="Personenliste auf-/zuklappen" aria-expanded="false">
+                <i class="fa-solid fa-chevron-down" id="personsChevronIcon"></i>
+              </button>
+            </div>
           </div>
 
-          <div id="personsList" class="d-flex flex-column gap-3">
+          <!-- Compact Preview Strip -->
+          <div id="personsPreviewBar" class="persons-preview-bar" role="button" tabindex="0" title="Klicken zum Auf-/Zuklappen">
             <!-- Rendered by app.js -->
+          </div>
+
+          <!-- Sliding Drawer -->
+          <div id="personsDrawer" class="persons-drawer">
+            <div id="personsList" class="d-flex flex-column gap-3">
+              <!-- Rendered by app.js -->
+            </div>
           </div>
         </div>
 

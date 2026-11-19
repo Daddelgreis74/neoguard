@@ -142,6 +142,27 @@
 
   const renderPersons = (persons) => {
     const container = document.getElementById("personsList");
+    const previewBar = document.getElementById("personsPreviewBar");
+    const countBadge = document.getElementById("personsCountBadge");
+    if (countBadge) countBadge.textContent = String(persons.length);
+
+    if (previewBar) {
+      if (!persons.length) {
+        previewBar.innerHTML = `<span class="small text-secondary"><i class="fa-solid fa-user-astronaut me-1"></i>Noch keine Personen hinterlegt – zum Öffnen klicken</span>`;
+      } else {
+        previewBar.innerHTML = persons
+          .map((p) => {
+            const latestPhoto = (p.photos || []).slice(-1)[0];
+            const avatar = latestPhoto
+              ? `<img src="/api/faces/${encodeURIComponent(latestPhoto)}" class="person-mini-avatar" alt="${escapeHtml(p.name)}">`
+              : `<span class="person-mini-fallback">${escapeHtml((p.name || "?").charAt(0).toUpperCase())}</span>`;
+            const pausedDot = p.enabled === false ? '<span class="text-secondary ms-1" style="font-size:0.65rem;">(Pause)</span>' : "";
+            return `<span class="person-mini-chip">${avatar}<span>${escapeHtml(p.name)}${pausedDot}</span></span>`;
+          })
+          .join("");
+      }
+    }
+
     if (!container) return;
 
     if (!persons.length) {
@@ -1003,6 +1024,33 @@
   document.getElementById("btnLogout")?.addEventListener("click", async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     showLoginScreen();
+  });
+
+  const setPersonsOpen = (open) => {
+    const drawer = document.getElementById("personsDrawer");
+    const chevron = document.getElementById("personsChevronIcon");
+    const btn = document.getElementById("btnTogglePersons");
+    if (drawer) drawer.classList.toggle("open", open);
+    if (chevron) chevron.classList.toggle("rotated", open);
+    if (btn) btn.setAttribute("aria-expanded", String(open));
+    localStorage.setItem("neoguard_persons_open", open ? "1" : "0");
+  };
+
+  setPersonsOpen(localStorage.getItem("neoguard_persons_open") === "1");
+
+  const togglePersonsDrawer = () => {
+    const drawer = document.getElementById("personsDrawer");
+    const next = !(drawer && drawer.classList.contains("open"));
+    setPersonsOpen(next);
+  };
+
+  document.getElementById("btnTogglePersons")?.addEventListener("click", togglePersonsDrawer);
+  document.getElementById("personsPreviewBar")?.addEventListener("click", togglePersonsDrawer);
+  document.getElementById("personsPreviewBar")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      togglePersonsDrawer();
+    }
   });
 
   const bootApp = async () => {
