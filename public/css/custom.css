@@ -338,3 +338,41 @@ body {
   background: rgba(56, 189, 248, 0.12);
   border: 1px solid rgba(56, 189, 248, 0.28);
 }
+
+/* Light Mode Contrast Overrides (Bootstrap 5.3 utilities on bright glass) */
+[data-bs-theme="light"] .text-info {
+  color: #0369a1 !important;
+}
+
+[data-bs-theme="light"] .bg-info.bg-opacity-25 {
+  background-color: rgba(2, 132, 199, 0.14) !important;
+}
+
+[data-bs-theme="light"] .text-warning {
+  color: #b45309 !important;
+}
+
+[data-bs-theme="light"] .text-success {
+  color: #047857 !important;
+}
+
+[data-bs-theme="light"] .text-danger {
+  color: #b91c1c !important;
+}
+
+[data-bs-theme="light"] .text-secondary {
+  color: #334155 !important;
+}
+
+[data-bs-theme="light"] .brand-accent {
+  background: linear-gradient(135deg, #0284c7 0%, #4338ca 55%, #059669 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+[data-bs-theme="light"] .brand-pill {
+  color: #0369a1;
+  background: rgba(2, 132, 199, 0.12);
+  border-color: rgba(2, 132, 199, 0.30);
+}
