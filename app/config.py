@@ -1,5 +1,8 @@
+import hashlib
+import hmac
 import json
 import os
+import secrets
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -47,6 +50,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "go2rtc_url": os.environ.get("GO2RTC_URL", "http://127.0.0.1:1984"),
     },
     "persons": [],
+    "auth": {
+        "enabled": True,
+        "username": os.environ.get("AUTH_USER", "admin"),
+        "password_hash": "",
+        "session_secret": "",
+    },
 }
 
 
@@ -83,12 +92,76 @@ class ConfigStore:
                 merged["camera"].update(loaded.get("camera", {}))
                 merged["guard"].update(loaded.get("guard", {}))
                 merged["persons"] = loaded.get("persons", [])
+                merged["auth"].update(loaded.get("auth", {}))
+                self._ensure_auth_initialized(merged)
                 return merged
             except Exception:
                 pass
         fresh = json.loads(json.dumps(DEFAULT_CONFIG))
+        self._ensure_auth_initialized(fresh)
         self._save_config_unlocked(fresh)
         return fresh
+
+    @staticmethod
+    def _hash_password(password: str, salt: Optional[str] = None) -> str:
+        s = salt or secrets.token_hex(16)
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), s.encode("utf-8"), 120_000).hex()
+        return f"pbkdf2_sha256${s}${dk}"
+
+    def _ensure_auth_initialized(self, cfg: Dict[str, Any]) -> None:
+        auth = cfg.setdefault("auth", {})
+        changed = False
+        if not auth.get("session_secret"):
+            auth["session_secret"] = secrets.token_hex(32)
+            changed = True
+        if not auth.get("username"):
+            auth["username"] = os.environ.get("AUTH_USER", "admin")
+            changed = True
+        if not auth.get("password_hash"):
+            default_pw = os.environ.get("AUTH_PASS", "tapo1234")
+            auth["password_hash"] = self._hash_password(default_pw)
+            changed = True
+        if changed:
+            self._save_config_unlocked(cfg)
+
+    def verify_login(self, username: str, password: str) -> bool:
+        with self._lock:
+            auth = self._config.get("auth", {})
+            if not auth.get("enabled", True):
+                return True
+            expected_user = (auth.get("username") or "admin").strip()
+            if username.strip() != expected_user:
+                return False
+            stored = auth.get("password_hash") or ""
+            parts = stored.split("$")
+            if len(parts) != 3 or parts[0] != "pbkdf2_sha256":
+                return False
+            calc = self._hash_password(password, salt=parts[1])
+            return hmac.compare_digest(calc, stored)
+
+    def get_session_secret(self) -> str:
+        with self._lock:
+            return self._config.get("auth", {}).get("session_secret", "")
+
+    def get_auth_info(self) -> Dict[str, Any]:
+        with self._lock:
+            auth = self._config.get("auth", {})
+            return {
+                "enabled": bool(auth.get("enabled", True)),
+                "username": auth.get("username", "admin"),
+            }
+
+    def update_credentials(self, new_username: Optional[str], new_password: str) -> Dict[str, Any]:
+        with self._lock:
+            auth = self._config.setdefault("auth", {})
+            if new_username and new_username.strip():
+                auth["username"] = new_username.strip()
+            if new_password:
+                auth["password_hash"] = self._hash_password(new_password)
+                # Rotate session secret to invalidate old sessions on password change
+                auth["session_secret"] = secrets.token_hex(32)
+            self._save_config_unlocked(self._config)
+            return {"username": auth["username"], "enabled": bool(auth.get("enabled", True))}
 
     def _save_config_unlocked(self, cfg: Dict[str, Any]) -> None:
         with open(self.config_file, "w", encoding="utf-8") as f:
@@ -112,6 +185,12 @@ class ConfigStore:
     def get_config(self, mask_secrets: bool = False) -> Dict[str, Any]:
         with self._lock:
             cfg = json.loads(json.dumps(self._config))
+            # Never expose password hashes or session secrets in config API
+            if "auth" in cfg:
+                cfg["auth"] = {
+                    "enabled": bool(cfg["auth"].get("enabled", True)),
+                    "username": cfg["auth"].get("username", "admin"),
+                }
             # Strip heavy numpy embedding arrays in UI payloads if requested
             for p in cfg.get("persons", []):
                 p["photo_count"] = len(p.get("photos", []))

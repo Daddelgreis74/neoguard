@@ -22,7 +22,32 @@
     <div class="bg-orb orb-3"></div>
   </div>
 
-  <div class="container py-4 app-shell">
+  <!-- LOGIN SECTION -->
+  <div id="loginSection" class="container d-none justify-content-center align-items-center vh-100 position-relative app-shell">
+    <div class="glass-panel p-4 p-md-5" style="width: 100%; max-width: 420px;">
+      <div class="text-center mb-4">
+        <img src="icon.svg" alt="Tapo Room Guard" width="56" height="56" class="mb-3">
+        <h4 class="fw-bold mb-1">Tapo Room Guard</h4>
+        <p class="text-secondary small mb-0">Bitte anmelden, um auf Kamera &amp; KI zuzugreifen</p>
+      </div>
+      <form id="loginForm">
+        <div class="mb-3">
+          <label for="loginUsername" class="form-label small fw-semibold">Benutzername</label>
+          <input type="text" class="form-control" id="loginUsername" required placeholder="admin" value="admin">
+        </div>
+        <div class="mb-3">
+          <label for="loginPassword" class="form-label small fw-semibold">Passwort</label>
+          <input type="password" class="form-control" id="loginPassword" required placeholder="••••••••">
+        </div>
+        <div class="alert alert-danger d-none py-2 small" id="loginAlert"></div>
+        <button type="submit" class="btn btn-neo-primary w-100 py-2 mt-2">
+          <i class="fa-solid fa-right-to-bracket me-1"></i>Anmelden
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div id="mainSection" class="container py-4 app-shell d-none">
     <!-- Topbar -->
     <nav class="neo-topbar d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
       <div class="d-flex align-items-center gap-3">
@@ -45,6 +70,9 @@
         </button>
         <button class="btn btn-glass btn-sm px-2.5 py-2" id="btnThemeToggle" title="Dark/Light Mode">
           <i class="fa-solid fa-sun" id="themeIcon"></i>
+        </button>
+        <button class="btn btn-glass btn-sm px-2.5 py-2 text-danger" id="btnLogout" title="Abmelden">
+          <i class="fa-solid fa-right-from-bracket"></i>
         </button>
       </div>
     </nav>
@@ -79,7 +107,7 @@
           </div>
 
           <div class="stream-viewport mb-2" id="streamViewport">
-            <img id="liveStreamImg" src="/api/camera/stream.mjpg" alt="Tapo C200 Stream">
+            <img id="liveStreamImg" alt="Tapo C200 Stream">
             <div class="stream-badge-overlay">
               <span class="badge-live"><i class="fa-solid fa-circle fa-2xs me-1"></i>LIVE</span>
               <span class="badge bg-dark bg-opacity-75 text-light" id="streamResBadge">HD Live</span>
@@ -475,6 +503,22 @@
                   <input class="form-check-input" type="checkbox" id="cfgTrackingReturnHome" checked>
                   <label class="form-check-label small" for="cfgTrackingReturnHome">Nach 20s ohne Person zurück zu Preset 1</label>
                 </div>
+              </div>
+            </div>
+
+            <h6 class="fw-bold text-info mt-4 mb-3">3. Login-Zugangsdaten ändern (optional)</h6>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Aktuelles Passwort</label>
+                <input type="password" class="form-control" id="cfgAuthCurrentPass" placeholder="Nur bei Änderung">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Benutzername</label>
+                <input type="text" class="form-control" id="cfgAuthNewUser" placeholder="admin">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small fw-semibold">Neues Passwort</label>
+                <input type="password" class="form-control" id="cfgAuthNewPass" placeholder="Mind. 4 Zeichen">
               </div>
             </div>
           </div>

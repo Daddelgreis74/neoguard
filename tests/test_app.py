@@ -24,7 +24,26 @@ def client(tmp_path: Path):
     store._config = store._load_config()
     store._events = []
     with TestClient(app) as c:
+        # Authenticate test client with default credentials
+        login_res = c.post("/api/auth/login", json={"username": "admin", "password": "tapo1234"})
+        assert login_res.status_code == 200
         yield c
+
+
+def test_auth_protection(tmp_path: Path):
+    store.data_dir = tmp_path
+    store.config_file = tmp_path / "config.json"
+    store.events_file = tmp_path / "events.json"
+    store.faces_dir = tmp_path / "faces"
+    store.snapshots_dir = tmp_path / "snapshots"
+    store.models_dir = tmp_path / "models"
+    store._ensure_dirs()
+    store._config = store._load_config()
+    store._events = []
+    with TestClient(app) as anon:
+        assert anon.get("/api/health").status_code == 200
+        assert anon.get("/api/config").status_code == 401
+        assert anon.post("/api/tts/speak", json={"text": "test"}).status_code == 401
 
 
 def test_health_endpoint(client: TestClient):

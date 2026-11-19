@@ -98,6 +98,10 @@
       const autoTrack = guard.auto_tracking !== false;
       document.getElementById("cfgAutoTracking").checked = autoTrack;
       document.getElementById("cfgTrackingReturnHome").checked = guard.tracking_return_home !== false;
+      const authUserInput = document.getElementById("cfgAuthNewUser");
+      if (authUserInput && data.auth?.username) {
+        authUserInput.value = data.auth.username;
+      }
       const trackSpan = document.getElementById("autoTrackState");
       if (trackSpan) {
         trackSpan.textContent = autoTrack ? "AN" : "AUS";
@@ -920,6 +924,28 @@
       body: JSON.stringify(guardPayload),
     });
 
+    const curAuthPass = document.getElementById("cfgAuthCurrentPass")?.value || "";
+    const newAuthUser = document.getElementById("cfgAuthNewUser")?.value.trim() || "";
+    const newAuthPass = document.getElementById("cfgAuthNewPass")?.value || "";
+    if (curAuthPass && newAuthPass) {
+      const pwRes = await fetch("/api/auth/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          current_password: curAuthPass,
+          new_username: newAuthUser || undefined,
+          new_password: newAuthPass,
+        }),
+      });
+      if (!pwRes.ok) {
+        const err = await pwRes.json().catch(() => ({}));
+        showStatus(err.detail || "Passwort-Änderung fehlgeschlagen.", "danger");
+        return;
+      }
+      document.getElementById("cfgAuthCurrentPass").value = "";
+      document.getElementById("cfgAuthNewPass").value = "";
+    }
+
     bootstrap.Modal.getInstance(document.getElementById("settingsModal"))?.hide();
     showStatus("Kamera- & KI-Einstellungen gespeichert!", "success");
     loadConfig();
@@ -931,9 +957,84 @@
     loadEvents();
   });
 
-  // Initial Boot
-  initTheme();
-  loadConfig();
-  loadEvents();
-  setInterval(loadEvents, 5000);
+  // -------------------- Auth & Boot --------------------
+  let eventsTimer = null;
+  const showMainApp = () => {
+    const loginSec = document.getElementById("loginSection");
+    const mainSec = document.getElementById("mainSection");
+    if (loginSec) {
+      loginSec.classList.add("d-none");
+      loginSec.classList.remove("d-flex");
+    }
+    if (mainSec) mainSec.classList.remove("d-none");
+    const streamImg = document.getElementById("liveStreamImg");
+    if (streamImg && !streamImg.getAttribute("src")) {
+      streamImg.src = `/api/camera/stream.mjpg?t=${Date.now()}`;
+    }
+    loadConfig();
+    loadEvents();
+    if (!eventsTimer) eventsTimer = setInterval(loadEvents, 5000);
+  };
+
+  const showLoginScreen = () => {
+    if (eventsTimer) {
+      clearInterval(eventsTimer);
+      eventsTimer = null;
+    }
+    const loginSec = document.getElementById("loginSection");
+    const mainSec = document.getElementById("mainSection");
+    if (mainSec) mainSec.classList.add("d-none");
+    if (loginSec) {
+      loginSec.classList.remove("d-none");
+      loginSec.classList.add("d-flex");
+    }
+    const streamImg = document.getElementById("liveStreamImg");
+    if (streamImg) streamImg.removeAttribute("src");
+  };
+
+  document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const username = document.getElementById("loginUsername").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const alertEl = document.getElementById("loginAlert");
+    alertEl?.classList.add("d-none");
+
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (res.ok) {
+      document.getElementById("loginPassword").value = "";
+      showMainApp();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      if (alertEl) {
+        alertEl.textContent = err.detail || "Anmeldung fehlgeschlagen.";
+        alertEl.classList.remove("d-none");
+      }
+    }
+  });
+
+  document.getElementById("btnLogout")?.addEventListener("click", async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    showLoginScreen();
+  });
+
+  const bootApp = async () => {
+    initTheme();
+    try {
+      const res = await fetch("/api/auth/status");
+      const data = await res.json();
+      if (data.authenticated) {
+        showMainApp();
+      } else {
+        showLoginScreen();
+      }
+    } catch {
+      showLoginScreen();
+    }
+  };
+
+  bootApp();
 })();

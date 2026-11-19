@@ -1,6 +1,9 @@
 import asyncio
+import hashlib
+import hmac
 import logging
 import os
+import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -8,8 +11,8 @@ from typing import Any, Dict, Optional
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -133,6 +136,120 @@ class PresetRequest(BaseModel):
 class SpeakRequest(BaseModel):
     text: str
     voice: Optional[str] = None
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_username: Optional[str] = None
+    new_password: str
+
+
+# -------------------- Auth Middleware & Helpers --------------------
+
+SESSION_COOKIE_NAME = "tapo_guard_session"
+SESSION_TTL_SEC = 30 * 24 * 3600  # 30 days
+PUBLIC_API_PATHS = frozenset({"/api/health", "/api/auth/status", "/api/auth/login", "/api/auth/logout"})
+
+
+def _sign_session_token(username: str) -> str:
+    exp = int(time.time()) + SESSION_TTL_SEC
+    payload = f"{username}:{exp}"
+    secret = store.get_session_secret().encode("utf-8")
+    sig = hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{payload}:{sig}"
+
+
+def _verify_session_token(token: Optional[str]) -> Optional[str]:
+    if not token or not store.get_auth_info().get("enabled", True):
+        return store.get_auth_info().get("username", "admin") if not store.get_auth_info().get("enabled", True) else None
+    parts = token.rsplit(":", 2)
+    if len(parts) != 3:
+        return None
+    username, exp_str, sig = parts
+    try:
+        if int(exp_str) < int(time.time()):
+            return None
+    except ValueError:
+        return None
+    payload = f"{username}:{exp_str}"
+    secret = store.get_session_secret().encode("utf-8")
+    expected_sig = hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    if hmac.compare_digest(sig, expected_sig):
+        return username
+    return None
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/api/") and path not in PUBLIC_API_PATHS:
+        if store.get_auth_info().get("enabled", True):
+            token = request.cookies.get(SESSION_COOKIE_NAME)
+            if not _verify_session_token(token):
+                return JSONResponse(status_code=401, content={"detail": "Nicht angemeldet."})
+    return await call_next(request)
+
+
+# -------------------- Auth Endpoints --------------------
+
+@app.get("/api/auth/status")
+def get_auth_status(request: Request) -> Dict[str, Any]:
+    auth_info = store.get_auth_info()
+    if not auth_info.get("enabled", True):
+        return {"authenticated": True, "auth_enabled": False, "username": auth_info.get("username", "admin")}
+    user = _verify_session_token(request.cookies.get(SESSION_COOKIE_NAME))
+    return {
+        "authenticated": user is not None,
+        "auth_enabled": True,
+        "username": user or "",
+    }
+
+
+@app.post("/api/auth/login")
+def login(payload: LoginRequest, response: Response) -> Dict[str, Any]:
+    if not store.verify_login(payload.username, payload.password):
+        raise HTTPException(status_code=401, detail="Benutzername oder Passwort falsch.")
+    token = _sign_session_token(payload.username.strip())
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=SESSION_TTL_SEC,
+        path="/",
+    )
+    return {"ok": True, "username": payload.username.strip()}
+
+
+@app.post("/api/auth/logout")
+def logout(response: Response) -> Dict[str, Any]:
+    response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
+    return {"ok": True}
+
+
+@app.post("/api/auth/password")
+def change_password(payload: PasswordChangeRequest, request: Request, response: Response) -> Dict[str, Any]:
+    current_user = _verify_session_token(request.cookies.get(SESSION_COOKIE_NAME)) or store.get_auth_info().get("username", "admin")
+    if not store.verify_login(current_user, payload.current_password):
+        raise HTTPException(status_code=401, detail="Aktuelles Passwort ist falsch.")
+    if len(payload.new_password) < 4:
+        raise HTTPException(status_code=400, detail="Neues Passwort muss mindestens 4 Zeichen haben.")
+    info = store.update_credentials(payload.new_username, payload.new_password)
+    new_token = _sign_session_token(info["username"])
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=new_token,
+        httponly=True,
+        samesite="lax",
+        max_age=SESSION_TTL_SEC,
+        path="/",
+    )
+    return {"ok": True, "username": info["username"]}
 
 
 # -------------------- API Endpoints --------------------
