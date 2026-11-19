@@ -55,9 +55,9 @@ COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN sed -i 's/\r$//' /app/docker-entrypoint.sh && chmod +x /app/docker-entrypoint.sh
 
 VOLUME ["/app/data"]
-EXPOSE 8095
+EXPOSE 30504
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -fsS http://127.0.0.1:8095/api/health || exit 1
+  CMD sh -c 'curl -fsS "http://127.0.0.1:${PORT:-30504}/api/health" || exit 1'
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

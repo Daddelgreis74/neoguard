@@ -41,10 +41,10 @@ services:
     container_name: neoguard
     restart: unless-stopped
     ports:
-      - "8095:8095"
+      - "30504:30504"
     environment:
       - TZ=Europe/Berlin
-      - PORT=8095
+      - PORT=30504
       - TAPO_HOST=192.168.178.101
       - TAPO_RTSP_USER=dein_kamera_user
       - TAPO_RTSP_PASS=dein_kamera_passwort
@@ -54,14 +54,15 @@ services:
 ```
 
 Nach dem Start ist das Web-Dashboard erreichbar unter:
-👉 **`http://<server-ip>:8095`**
+👉 **`http://<server-ip>:30504`**
 
-### TrueNAS SCALE (`ix-app` Custom App)
-In TrueNAS SCALE lässt sich der Container sauber über **Apps → Discover Apps → Custom App** einrichten:
+### TrueNAS SCALE (`ix-app` / Katalog)
+In TrueNAS SCALE lässt sich der Container sauber über **Apps → Discover Apps → Custom App** (oder den TrueNAS-Katalog) einrichten:
 - **Repository:** `ghcr.io/daddelgreis74/neoguard` · **Tag:** `latest`
-- **Port:** Host `8095` → Container `8095` (`TCP`, `published`)
+- **Port:** Host `30504` → Container `30504` (`TCP`, `published`, fortlaufender `30xxx`-TrueNAS-Katalogport)
 - **Storage:** `ixVolume` (`data`) gemountet auf `/app/data`
-- **Portal:** HTTP auf Node-IP, Port `8095`, Pfad `/` (für den direkten *Web UI*-Button)
+- **Portal:** HTTP auf Node-IP, Port `30504`, Pfad `/` (für den direkten *Web UI*-Button)
+- **Logo:** `public/icons3d/neoguard-logo.png` (256×256 PNG)
 
 ---
 

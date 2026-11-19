@@ -5,10 +5,10 @@ services:
     container_name: neoguard
     restart: unless-stopped
     ports:
-      - "8095:8095"
+      - "30504:30504"
     environment:
       - TZ=Europe/Berlin
-      - PORT=8095
+      - PORT=30504
       - TAPO_HOST=${TAPO_HOST:-192.168.178.50}
       - TAPO_RTSP_USER=${TAPO_RTSP_USER:-}
       - TAPO_RTSP_PASS=${TAPO_RTSP_PASS:-}
