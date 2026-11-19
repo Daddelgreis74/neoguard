@@ -243,6 +243,11 @@ def get_camera_hardware_state() -> Dict[str, Any]:
 @app.post("/api/camera/hardware")
 def set_camera_hardware(payload: HardwareControlRequest) -> Dict[str, Any]:
     raw_cfg = store.get_raw_config()
+    if payload.control == "siren":
+        return tts_service.play_siren_on_camera(
+            camera_cfg=raw_cfg["camera"],
+            go2rtc_url=raw_cfg["guard"].get("go2rtc_url", "http://127.0.0.1:1984"),
+        )
     return camera_service.set_hardware_control(raw_cfg["camera"], payload.control, payload.value)
 
 

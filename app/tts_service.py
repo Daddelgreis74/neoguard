@@ -224,3 +224,33 @@ class LocalTTSService:
             delivery["voice"] = voice_name
             delivery["wav_path"] = str(wav_path)
             return delivery
+
+    def play_siren_on_camera(
+        self,
+        camera_cfg: Dict[str, Any],
+        go2rtc_url: str = "http://127.0.0.1:1984",
+        duration_sec: float = 2.5,
+    ) -> Dict[str, Any]:
+        """Generate a loud two-tone alarm siren WAV and play it on the Tapo C200 speaker."""
+        siren_path = self.tts_dir / "siren_alarm.wav"
+        sample_rate = 16000
+        num_samples = int(sample_rate * duration_sec)
+        with self._speak_lock:
+            with wave.open(str(siren_path), "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(sample_rate)
+                frames = bytearray()
+                for i in range(num_samples):
+                    t = i / sample_rate
+                    # Alternating 880 Hz / 1240 Hz alarm siren every 0.25s
+                    freq = 1240.0 if int(t / 0.25) % 2 == 0 else 880.0
+                    sample = int(28000 * math.sin(2.0 * math.pi * freq * t))
+                    frames.extend(struct.pack("<h", max(-32768, min(32767, sample))))
+                wf.writeframes(bytes(frames))
+
+            return self.send_wav_to_camera_speaker(
+                wav_path=siren_path,
+                camera_cfg=camera_cfg,
+                go2rtc_url=go2rtc_url,
+            )

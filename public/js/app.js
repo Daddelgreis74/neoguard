@@ -381,33 +381,30 @@
     const data = await res.json();
     showStatus(
       privacyEnabled
-        ? "Physischer Privatsphäre-Modus aktiviert (Linse fährt ins Gehäuse)."
+        ? "Privatsphäre-Modus aktiviert (Video-Stream & KI pausiert)."
         : "Privatsphäre-Modus beendet (Kamera aktiv).",
       data.ok ? "info" : "warning"
     );
   });
 
-  // Tapo C200 V5 TPAP Hardware Controls (Siren, LED, Night Vision)
+  // Tapo C200 V5 TPAP Hardware Controls (Siren via Backchannel, LED, Night Vision)
   let hwLedOn = true;
   const nightModes = ["auto", "on", "off"];
   let nightModeIdx = 0;
 
   document.getElementById("btnHardwareSiren")?.addEventListener("click", async () => {
-    const res = await fetch("/api/camera/hardware", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ control: "siren", value: true }),
-    });
-    const data = await res.json();
-    showStatus(data.ok ? "Kamera-Sirene ausgelöst!" : `Sirene Fehler: ${data.error}`, data.ok ? "warning" : "danger");
-    if (data.ok) {
-      setTimeout(() => {
-        fetch("/api/camera/hardware", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ control: "siren", value: false }),
-        });
-      }, 2500);
+    const btn = document.getElementById("btnHardwareSiren");
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch("/api/camera/hardware", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ control: "siren", value: true }),
+      });
+      const data = await res.json();
+      showStatus(data.ok ? "Alarm-Sirene über Kamera-Lautsprecher ausgelöst!" : `Sirene Fehler: ${data.error}`, data.ok ? "warning" : "danger");
+    } finally {
+      if (btn) btn.disabled = false;
     }
   });
 
