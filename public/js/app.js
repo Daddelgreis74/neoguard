@@ -1028,6 +1028,7 @@
     hikvision: { rtsp_port: 554, onvif_port: 80, stream_quality: "Streaming/Channels/101", onvif_profile: "Profile_1" },
     dahua: { rtsp_port: 554, onvif_port: 80, stream_quality: "cam/realmonitor?channel=1&subtype=0", onvif_profile: "MediaProfile000" },
     imou: { rtsp_port: 554, onvif_port: 80, stream_quality: "cam/realmonitor?channel=1&subtype=0", onvif_profile: "MediaProfile000" },
+    thingino: { rtsp_port: 554, onvif_port: 80, stream_quality: "ch0", onvif_profile: "Profile_0" },
   };
 
   document.getElementById("cfgBrandPreset")?.addEventListener("change", (e) => {
