@@ -1,4 +1,5 @@
 (() => {
+  const t = (key, vars = {}) => (window.neoI18n ? window.neoI18n.t(key, vars) : key);
   let currentConfig = null;
   let privacyEnabled = false;
   let selectedCameraId = localStorage.getItem("neoguard_selected_cam") || null;
@@ -35,10 +36,12 @@
       .replace(/"/g, "&quot;");
 
   const formatTime = (isoStr) => {
-    if (!isoStr) return "Noch nie";
+    if (!isoStr) return t("person_never");
     try {
       const dt = new Date(isoStr);
-      return dt.toLocaleString("de-DE", {
+      const localeMap = { de: "de-DE", en: "en-US", fr: "fr-FR", es: "es-ES" };
+      const loc = localeMap[window.neoI18n?.getLang?.() || "en"] || "en-US";
+      return dt.toLocaleString(loc, {
         day: "2-digit",
         month: "2-digit",
         hour: "2-digit",
@@ -75,7 +78,7 @@
     const autoTrack = cam.auto_tracking !== false;
     const trackSpan = document.getElementById("autoTrackState");
     if (trackSpan) {
-      trackSpan.textContent = autoTrack ? "AN" : "AUS";
+      trackSpan.textContent = autoTrack ? t("state_on") : t("state_off");
       trackSpan.className = autoTrack ? "text-success fw-bold" : "text-secondary";
     }
 
@@ -107,7 +110,7 @@
           <img src="/api/camera/stream.mjpg?camera_id=${encodeURIComponent(c.id)}&t=${Date.now()}" alt="${escapeHtml(c.name)}">
           <div class="d-flex justify-content-between align-items-center px-3 py-2">
             <span class="fw-semibold small">${escapeHtml(c.name)}</span>
-            <span class="badge ${c.enabled !== false ? "text-bg-success" : "text-bg-secondary"}">${c.enabled !== false ? "Aktiv" : "Pausiert"}</span>
+            <span class="badge ${c.enabled !== false ? "text-bg-success" : "text-bg-secondary"}">${c.enabled !== false ? t("cam_active") : t("cam_paused")}</span>
           </div>
         </div>
       </div>`
@@ -238,15 +241,15 @@
       if (multiGridMode) renderMultiGrid();
 
       document.getElementById("engineBadge").textContent =
-        `100% Lokal (${sys.face_engine || "OpenCV ONNX"})`;
+        `${t("engine_local")} (${sys.face_engine || "OpenCV ONNX"})`;
 
       const badge = document.getElementById("guardActiveBadge");
       if (guard.enabled) {
         badge.className = "badge rounded-pill text-bg-success px-3 py-2";
-        badge.innerHTML = `<img src="icons3d/shield.png" class="icon3d icon3d-sm me-1" alt="">Überwachung Aktiv (${guard.active_hours_start}–${guard.active_hours_end})`;
+        badge.innerHTML = `<img src="icons3d/shield.png" class="icon3d icon3d-sm me-1" alt="">${t("guard_active")} (${guard.active_hours_start}–${guard.active_hours_end})`;
       } else {
         badge.className = "badge rounded-pill text-bg-secondary px-3 py-2";
-        badge.innerHTML = `<img src="icons3d/privacy.png" class="icon3d icon3d-sm me-1" alt="">Überwachung Pausiert`;
+        badge.innerHTML = `<img src="icons3d/privacy.png" class="icon3d icon3d-sm me-1" alt="">${t("guard_paused")}`;
       }
 
       // Populate Settings Modal (3 Tabs)
@@ -268,7 +271,7 @@
       const aiOverlay = guard.ai_overlay !== false;
       const overlaySpan = document.getElementById("aiOverlayState");
       if (overlaySpan) {
-        overlaySpan.textContent = aiOverlay ? "AN" : "AUS";
+        overlaySpan.textContent = aiOverlay ? t("state_on") : t("state_off");
         overlaySpan.className = aiOverlay ? "text-success fw-bold" : "text-secondary";
       }
 
@@ -286,7 +289,7 @@
 
     if (previewBar) {
       if (!persons.length) {
-        previewBar.innerHTML = `<span class="small text-secondary"><img src="icons3d/users.png" class="icon3d icon3d-sm me-1" alt="">Noch keine Personen hinterlegt – zum Öffnen klicken</span>`;
+        previewBar.innerHTML = `<span class="small text-secondary"><img src="icons3d/users.png" class="icon3d icon3d-sm me-1" alt="">${t("persons_empty_preview")}</span>`;
       } else {
         previewBar.innerHTML = persons
           .map((p) => {
@@ -294,7 +297,7 @@
             const avatar = latestPhoto
               ? `<img src="/api/faces/${encodeURIComponent(latestPhoto)}" class="person-mini-avatar" alt="${escapeHtml(p.name)}">`
               : `<span class="person-mini-fallback">${escapeHtml((p.name || "?").charAt(0).toUpperCase())}</span>`;
-            const pausedDot = p.enabled === false ? '<span class="text-secondary ms-1" style="font-size:0.65rem;">(Pause)</span>' : "";
+            const pausedDot = p.enabled === false ? `<span class="text-secondary ms-1" style="font-size:0.65rem;">(${t("person_paused")})</span>` : "";
             return `<span class="person-mini-chip">${avatar}<span>${escapeHtml(p.name)}${pausedDot}</span></span>`;
           })
           .join("");
@@ -307,7 +310,7 @@
       container.innerHTML = `
         <div class="text-center text-secondary py-4 small">
           <img src="icons3d/users.png" class="icon3d-xl mb-2 d-block mx-auto" alt="">
-          Noch keine Personen hinterlegt. Lege eine Person an und nimm ein Referenzfoto über die Kamera auf!
+          ${t("persons_empty_list")}
         </div>
       `;
       return;
@@ -328,13 +331,13 @@
             <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
               <div>
                 <span class="fw-bold">${escapeHtml(p.name)}</span>
-                <span class="badge bg-info bg-opacity-25 text-info ms-2">${p.photo_count || 0} Fotos</span>
-                ${p.enabled === false ? '<span class="badge bg-secondary ms-1">Pausiert</span>' : ""}
+                <span class="badge bg-info bg-opacity-25 text-info ms-2">${p.photo_count || 0} ${t("person_photos")}</span>
+                ${p.enabled === false ? `<span class="badge bg-secondary ms-1">${t("person_paused")}</span>` : ""}
                 <div class="small text-secondary mt-1">
-                  <i class="fa-solid fa-comment-dots me-1"></i>${escapeHtml(p.greeting || "Standard-Begrüßung")}
+                  ${escapeHtml(p.greeting || "OK")}
                 </div>
                 <div class="small text-secondary">
-                  Zuletzt begrüßt: ${formatTime(p.last_greeted)} · Cooldown: ${p.cooldown_minutes ?? 120} Min.
+                  ${t("person_last_seen")}: ${formatTime(p.last_seen || p.last_greeted)}
                 </div>
               </div>
               <div class="d-flex gap-1">
@@ -348,14 +351,14 @@
             </div>
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2 pt-2 border-top border-secondary border-opacity-25">
               <div class="d-flex gap-2 align-items-center">
-                ${photos || '<span class="small text-warning">Noch kein Foto</span>'}
+                ${photos || `<span class="small text-warning">${t("person_no_photo")}</span>`}
               </div>
               <div class="d-flex gap-2">
-                <button class="btn btn-glass btn-sm" data-capture-person="${escapeHtml(p.id)}" title="Jetzt Foto von Kamera aufnehmen">
-                  <img src="icons3d/camera.png" class="icon3d me-1" alt="">Kamera-Snap
+                <button class="btn btn-glass btn-sm" data-capture-person="${escapeHtml(p.id)}">
+                  <img src="icons3d/camera.png" class="icon3d me-1" alt="">${t("btn_cam_snap")}
                 </button>
-                <label class="btn btn-glass btn-sm mb-0" title="Foto-Datei hochladen">
-                  <img src="icons3d/upload.png" class="icon3d me-1" alt="">Upload
+                <label class="btn btn-glass btn-sm mb-0">
+                  <img src="icons3d/upload.png" class="icon3d me-1" alt="">${t("btn_upload")}
                   <input type="file" accept="image/*" class="d-none" data-upload-person="${escapeHtml(p.id)}">
                 </label>
               </div>
@@ -375,7 +378,7 @@
       if (!container) return;
 
       if (!events.length) {
-        container.innerHTML = `<div class="text-center text-secondary py-3 small">Noch keine Ereignisse protokolliert.</div>`;
+        container.innerHTML = `<div class="text-center text-secondary py-3 small">${t("events_empty")}</div>`;
         return;
       }
 
@@ -387,7 +390,7 @@
 
           const camBadge = ev.camera_name
             ? `<span class="badge bg-info bg-opacity-25 text-info">${escapeHtml(ev.camera_name)}</span>`
-            : `<span class="badge text-bg-secondary">Erkannt</span>`;
+            : `<span class="badge text-bg-secondary">${t("events_recognized")}</span>`;
 
           return `
             <div class="event-item d-flex align-items-center justify-content-between gap-3">
@@ -1248,8 +1251,19 @@
     }
   });
 
+  document.querySelectorAll("#langSelectTop, #langSelectLogin").forEach((sel) => {
+    sel?.addEventListener("change", (e) => {
+      window.neoI18n?.setLang(e.target.value);
+      if (currentConfig) {
+        loadConfig();
+        loadEvents();
+      }
+    });
+  });
+
   const bootApp = async () => {
     initTheme();
+    window.neoI18n?.apply();
     try {
       const res = await fetch("/api/auth/status");
       const data = await res.json();

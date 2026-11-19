@@ -24,27 +24,35 @@
 
   <!-- LOGIN SECTION -->
   <div id="loginSection" class="container d-none justify-content-center align-items-center vh-100 position-relative app-shell">
-    <div class="glass-panel p-4 p-md-5" style="width: 100%; max-width: 420px;">
+    <div class="glass-panel p-4 p-md-5 position-relative" style="width: 100%; max-width: 420px;">
+      <div class="position-absolute top-0 end-0 p-3">
+        <select id="langSelectLogin" class="form-select form-select-sm" style="width: auto; font-weight: 600;" aria-label="Language">
+          <option value="de">DE</option>
+          <option value="en">EN</option>
+          <option value="fr">FR</option>
+          <option value="es">ES</option>
+        </select>
+      </div>
       <div class="text-center mb-4">
         <img src="icons3d/neoguard-logo.png" alt="NeoGuard" width="76" height="76" class="mb-3 brand-logo-glow">
         <div class="mb-2">
           <span class="brand-pill"><img src="icons3d/shield.png" class="icon3d icon3d-sm me-1" alt="">LOCAL AI SECURITY</span>
         </div>
         <h3 class="fw-bold mb-1 brand-wordmark">Neo<span class="brand-accent">Guard</span></h3>
-        <p class="text-secondary small mb-0">Bitte anmelden, um auf Kamera &amp; KI zuzugreifen</p>
+        <p class="text-secondary small mb-0" data-i18n="login_subtitle">Bitte anmelden, um auf Kamera &amp; KI zuzugreifen</p>
       </div>
       <form id="loginForm">
         <div class="mb-3">
-          <label for="loginUsername" class="form-label small fw-semibold">Benutzername</label>
+          <label for="loginUsername" class="form-label small fw-semibold" data-i18n="login_username">Benutzername</label>
           <input type="text" class="form-control" id="loginUsername" required placeholder="admin" value="admin">
         </div>
         <div class="mb-3">
-          <label for="loginPassword" class="form-label small fw-semibold">Passwort</label>
+          <label for="loginPassword" class="form-label small fw-semibold" data-i18n="login_password">Passwort</label>
           <input type="password" class="form-control" id="loginPassword" required placeholder="••••••••">
         </div>
         <div class="alert alert-danger d-none py-2 small" id="loginAlert"></div>
         <button type="submit" class="btn btn-neo-primary w-100 py-2 mt-2">
-          <img src="icons3d/shield.png" class="icon3d me-1" alt="">Anmelden
+          <img src="icons3d/shield.png" class="icon3d me-1" alt=""><span data-i18n="login_btn">Anmelden</span>
         </button>
       </form>
     </div>
@@ -58,19 +66,25 @@
         <div>
           <h5 class="mb-0 fw-bold brand-wordmark">Neo<span class="brand-accent">Guard</span></h5>
           <div class="small text-secondary">
-            <span>AI Camera Guard</span> ·
-            <span id="engineBadge" class="text-info">100% Lokal (Offline Vision)</span>
+            <span data-i18n="header_subtitle">AI Camera Guard</span> ·
+            <span id="engineBadge" class="text-info">100% Lokal</span>
           </div>
         </div>
       </div>
 
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <span id="guardActiveBadge" class="badge rounded-pill text-bg-success px-3 py-2">
-          <img src="icons3d/shield.png" class="icon3d icon3d-sm me-1" alt="">Überwachung Aktiv
+          <img src="icons3d/shield.png" class="icon3d icon3d-sm me-1" alt=""><span data-i18n="guard_active">Überwachung Aktiv</span>
         </span>
         <button class="btn btn-glass btn-sm px-3 py-2" id="btnOpenSettings" data-bs-toggle="modal" data-bs-target="#settingsModal">
-          <img src="icons3d/settings.png" class="icon3d me-1" alt="">Kamera & KI-Setup
+          <img src="icons3d/settings.png" class="icon3d me-1" alt=""><span data-i18n="btn_setup">Kamera & KI-Setup</span>
         </button>
+        <select id="langSelectTop" class="form-select form-select-sm" style="width: auto; font-weight: 600;" aria-label="Language">
+          <option value="de">DE</option>
+          <option value="en">EN</option>
+          <option value="fr">FR</option>
+          <option value="es">ES</option>
+        </select>
         <button class="btn btn-glass btn-sm px-2.5 py-2" id="btnThemeToggle" title="Dark/Light Mode">
           <img src="icons3d/sun.png" class="icon3d" id="themeIcon" alt="Theme">
         </button>
@@ -94,7 +108,7 @@
               <!-- Rendered by app.js -->
             </div>
             <button type="button" class="btn btn-glass btn-sm" id="btnToggleMultiGrid" title="Alle Kameras im Raster anzeigen">
-              <img src="icons3d/grid.png" class="icon3d me-1" alt="">Alle Kameras
+              <img src="icons3d/grid.png" class="icon3d me-1" alt=""><span data-i18n="btn_all_cameras">Alle Kameras</span>
             </button>
           </div>
 
@@ -106,21 +120,21 @@
           <div id="singleCameraView">
           <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <div>
-              <h5 class="fw-bold mb-0"><img src="icons3d/camera.png" class="icon3d icon3d-lg me-2" alt=""><span id="activeCameraTitle">Kamera 1</span> Live-Ansicht</h5>
+              <h5 class="fw-bold mb-0"><img src="icons3d/camera.png" class="icon3d icon3d-lg me-2" alt=""><span id="activeCameraTitle">Kamera 1</span> <span data-i18n="live_view_suffix">Live-Ansicht</span></h5>
               <small class="text-secondary" id="cameraIpSubtitle">IP: 192.168.178.50 · RTSP Port 554 / ONVIF 2020</small>
             </div>
             <div class="d-flex gap-2 flex-wrap">
               <button class="btn btn-glass btn-sm" id="btnAiOverlayToggle" title="KI-Erkennungs-Raster auf dem Live-Bild ein/ausschalten">
-                <img src="icons3d/brain.png" class="icon3d me-1" alt="">KI-Raster: <span id="aiOverlayState">AN</span>
+                <img src="icons3d/brain.png" class="icon3d me-1" alt=""><span data-i18n="btn_ai_grid">KI-Raster</span>: <span id="aiOverlayState">AN</span>
               </button>
               <button class="btn btn-glass btn-sm" id="btnAutoTrackToggle" title="KI-Personen-Verfolgung ein/ausschalten">
-                <img src="icons3d/preset.png" class="icon3d me-1" alt="">Tracking: <span id="autoTrackState">AN</span>
+                <img src="icons3d/preset.png" class="icon3d me-1" alt=""><span data-i18n="btn_tracking">Tracking</span>: <span id="autoTrackState">AN</span>
               </button>
               <button class="btn btn-neo-primary btn-sm px-3" id="btnScanNow" title="Jetzt Frame analysieren">
-                <img src="icons3d/users.png" class="icon3d me-1" alt="">Jetzt Erkennen
+                <img src="icons3d/users.png" class="icon3d me-1" alt=""><span data-i18n="btn_scan_now">Jetzt Erkennen</span>
               </button>
               <button class="btn btn-glass btn-sm" id="btnPrivacyToggle" title="Linse verdecken (Privatsphäre)">
-                <img src="icons3d/privacy.png" class="icon3d me-1" alt="">Privacy
+                <img src="icons3d/privacy.png" class="icon3d me-1" alt=""><span data-i18n="btn_privacy">Privacy</span>
               </button>
             </div>
           </div>
@@ -135,7 +149,7 @@
 
           <!-- Digital Zoom Bar -->
           <div class="d-flex align-items-center gap-2 mb-3 px-2 py-1 rounded-3" style="background: var(--surface-subtle); border: 1px solid var(--glass-border);">
-            <span class="small text-secondary text-nowrap"><img src="icons3d/zoom.png" class="icon3d me-1" alt="">Digital-Zoom</span>
+            <span class="small text-secondary text-nowrap"><img src="icons3d/zoom.png" class="icon3d me-1" alt=""><span data-i18n="digital_zoom">Digital-Zoom</span></span>
             <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnZoomMinus" title="Herauszoomen">
               <i class="fa-solid fa-minus"></i>
             </button>
@@ -144,13 +158,13 @@
               <i class="fa-solid fa-plus"></i>
             </button>
             <span class="badge bg-info bg-opacity-25 text-info" id="digitalZoomVal" style="min-width: 44px;">1.0x</span>
-            <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnZoomReset" title="Zoom zurücksetzen">Reset</button>
+            <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnZoomReset" data-i18n="btn_reset">Reset</button>
           </div>
 
           <!-- PTZ & Presets Row -->
           <div class="row align-items-center g-3 pt-2">
             <div class="col-sm-5">
-              <div class="text-center small text-secondary mb-2 fw-semibold">PTZ Schwenken / Neigen (360° / 114°)</div>
+              <div class="text-center small text-secondary mb-2 fw-semibold" data-i18n="ptz_label">PTZ Schwenken / Neigen (360° / 114°)</div>
               <div class="ptz-dpad">
                 <div></div>
                 <button class="ptz-btn" data-ptz="up" title="Nach oben"><img src="icons3d/arrow.png" class="icon3d icon3d-md" alt="Hoch"></button>
@@ -166,25 +180,25 @@
             <div class="col-sm-7">
               <div class="p-3 rounded-4" style="background: var(--surface-subtle); border: 1px solid var(--glass-border);">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                  <span class="small fw-semibold"><img src="icons3d/preset.png" class="icon3d me-1" alt="">Schnell-Positionen (Presets)</span>
-                  <span class="text-secondary" style="font-size: 0.72rem;"><img src="icons3d/save.png" class="icon3d icon3d-sm me-1" alt="">= Position speichern</span>
+                  <span class="small fw-semibold"><img src="icons3d/preset.png" class="icon3d me-1" alt=""><span data-i18n="presets_title">Schnell-Positionen (Presets)</span></span>
+                  <span class="text-secondary" style="font-size: 0.72rem;"><img src="icons3d/save.png" class="icon3d icon3d-sm me-1" alt=""><span data-i18n="presets_save_hint">= Position speichern</span></span>
                 </div>
                 <div class="d-flex flex-column gap-2 mb-3">
                   <div class="btn-group">
-                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="1"><img src="icons3d/preset.png" class="icon3d icon3d-sm me-2" alt="">1 · <span id="presetLabel1">Tür / Eingang</span> anfahren</button>
+                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="1"><img src="icons3d/preset.png" class="icon3d icon3d-sm me-2" alt="">1 · <span id="presetLabel1">Tür / Eingang</span> <span data-i18n="preset_goto_suffix">anfahren</span></button>
                     <button class="btn btn-glass btn-sm px-3" data-save-preset="1" title="Aktuelle Kameraposition auf Platz 1 speichern"><img src="icons3d/save.png" class="icon3d" alt="Speichern"></button>
                   </div>
                   <div class="btn-group">
-                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="2"><img src="icons3d/preset.png" class="icon3d icon3d-sm me-2" alt="">2 · <span id="presetLabel2">Raum-Mitte</span> anfahren</button>
+                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="2"><img src="icons3d/preset.png" class="icon3d icon3d-sm me-2" alt="">2 · <span id="presetLabel2">Raum-Mitte</span> <span data-i18n="preset_goto_suffix">anfahren</span></button>
                     <button class="btn btn-glass btn-sm px-3" data-save-preset="2" title="Aktuelle Kameraposition auf Platz 2 speichern"><img src="icons3d/save.png" class="icon3d" alt="Speichern"></button>
                   </div>
                   <div class="btn-group">
-                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="3"><img src="icons3d/preset.png" class="icon3d icon3d-sm me-2" alt="">3 · <span id="presetLabel3">Schreibtisch</span> anfahren</button>
+                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="3"><img src="icons3d/preset.png" class="icon3d icon3d-sm me-2" alt="">3 · <span id="presetLabel3">Schreibtisch</span> <span data-i18n="preset_goto_suffix">anfahren</span></button>
                     <button class="btn btn-glass btn-sm px-3" data-save-preset="3" title="Aktuelle Kameraposition auf Platz 3 speichern"><img src="icons3d/save.png" class="icon3d" alt="Speichern"></button>
                   </div>
                 </div>
-                <div class="small text-secondary mb-0">
-                  Kamera per Steuerkreuz ausrichten → rechts auf <img src="icons3d/save.png" class="icon3d icon3d-sm" alt=""> klicken, um die Position fest in der Tapo C200 zu speichern.
+                <div class="small text-secondary mb-0" data-i18n="presets_footer_hint">
+                  Kamera per Steuerkreuz ausrichten → rechts auf Speichern klicken, um die Position fest in der Kamera zu speichern.
                 </div>
               </div>
             </div>
@@ -200,14 +214,14 @@
           <div class="d-flex justify-content-between align-items-center mb-2">
             <div>
               <h5 class="fw-bold mb-0">
-                <img src="icons3d/users.png" class="icon3d icon3d-lg me-2" alt="">Bekannte Personen
+                <img src="icons3d/users.png" class="icon3d icon3d-lg me-2" alt=""><span data-i18n="persons_title">Bekannte Personen</span>
                 <span class="badge bg-info bg-opacity-25 text-info ms-1 align-middle" id="personsCountBadge" style="font-size: 0.72rem;">0</span>
               </h5>
-              <small class="text-secondary">Lokale Gesichts-Embeddings (Erkannte Personen = OK)</small>
+              <small class="text-secondary" data-i18n="persons_subtitle">Lokale Gesichts-Embeddings (Erkannte Personen = OK)</small>
             </div>
             <div class="d-flex align-items-center gap-2">
               <button class="btn btn-neo-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#addPersonModal">
-                <img src="icons3d/users.png" class="icon3d icon3d-sm me-1" alt="">Person +
+                <img src="icons3d/users.png" class="icon3d icon3d-sm me-1" alt=""><span data-i18n="btn_add_person">Person +</span>
               </button>
               <button type="button" class="btn btn-glass btn-sm px-2" id="btnTogglePersons" title="Personenliste auf-/zuklappen" aria-expanded="false">
                 <img src="icons3d/arrow.png" class="icon3d icon3d-rot-180" id="personsChevronIcon" alt="Aufklappen">
@@ -232,8 +246,8 @@
         <div class="glass-panel p-4">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
-              <h5 class="fw-bold mb-0"><img src="icons3d/history.png" class="icon3d icon3d-lg me-2" alt="">Unbekannte Personen (48h Log)</h5>
-              <small class="text-secondary">Automatische Snapshots der letzten 48 Stunden</small>
+              <h5 class="fw-bold mb-0"><img src="icons3d/history.png" class="icon3d icon3d-lg me-2" alt=""><span data-i18n="events_title">Unbekannte Personen (48h Log)</span></h5>
+              <small class="text-secondary" data-i18n="events_subtitle">Automatische Snapshots der letzten 48 Stunden</small>
             </div>
             <button class="btn btn-glass btn-sm" id="btnClearEvents" title="Historie leeren">
               <img src="icons3d/trash.png" class="icon3d" alt="Leeren">
@@ -253,29 +267,27 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content glass-panel border-0 p-2" style="background: var(--glass-modal-bg);">
         <div class="modal-header border-0">
-          <h5 class="modal-title fw-bold"><img src="icons3d/users.png" class="icon3d icon3d-lg me-2" alt="">Neue Person anlegen</h5>
+          <h5 class="modal-title fw-bold"><img src="icons3d/users.png" class="icon3d icon3d-lg me-2" alt=""><span data-i18n="modal_add_person">Neue Person anlegen</span></h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <form id="addPersonForm">
           <div class="modal-body">
             <div class="mb-3">
-              <label class="form-label small fw-semibold">Name der Person</label>
+              <label class="form-label small fw-semibold" data-i18n="modal_person_name">Name der Person</label>
               <input type="text" class="form-control" id="personNameInput" placeholder="z. B. Daniel" required>
             </div>
             <div class="mb-3">
-              <label class="form-label small fw-semibold">Individueller Begrüßungstext</label>
-              <input type="text" class="form-control" id="personGreetingInput" placeholder="{greeting_time}, {name}! Schön dich zu sehen.">
-              <div class="form-text small">Platzhalter: <code>{name}</code>, <code>{greeting_time}</code> (Guten Morgen/Tag/Abend), <code>{time}</code></div>
+              <label class="form-label small fw-semibold" data-i18n="modal_person_greeting">Individueller Hinweis (optional)</label>
+              <input type="text" class="form-control" id="personGreetingInput" placeholder="">
             </div>
             <div class="mb-2">
-              <label class="form-label small fw-semibold">Begrüßungs-Cooldown (Minuten)</label>
+              <label class="form-label small fw-semibold" data-i18n="modal_person_cooldown">Cooldown (Minuten)</label>
               <input type="number" class="form-control" id="personCooldownInput" value="120" min="0" max="1440">
-              <div class="form-text small">Verhindert, dass dieselbe Person bei jeder Bewegung erneut begrüßt wird.</div>
             </div>
           </div>
           <div class="modal-footer border-0">
-            <button type="button" class="btn btn-glass" data-bs-dismiss="modal">Abbrechen</button>
-            <button type="submit" class="btn btn-neo-primary px-4">Anlegen</button>
+            <button type="button" class="btn btn-glass" data-bs-dismiss="modal" data-i18n="btn_cancel">Abbrechen</button>
+            <button type="submit" class="btn btn-neo-primary px-4" data-i18n="btn_create">Anlegen</button>
           </div>
         </form>
       </div>
@@ -287,38 +299,37 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content glass-panel border-0 p-2" style="background: var(--glass-modal-bg);">
         <div class="modal-header border-0">
-          <h5 class="modal-title fw-bold"><img src="icons3d/edit.png" class="icon3d icon3d-lg me-2" alt="">Person bearbeiten</h5>
+          <h5 class="modal-title fw-bold"><img src="icons3d/edit.png" class="icon3d icon3d-lg me-2" alt=""><span data-i18n="modal_edit_person">Person bearbeiten</span></h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <form id="editPersonForm">
           <input type="hidden" id="editPersonId">
           <div class="modal-body">
             <div class="mb-3">
-              <label class="form-label small fw-semibold">Name der Person</label>
+              <label class="form-label small fw-semibold" data-i18n="modal_person_name">Name der Person</label>
               <input type="text" class="form-control" id="editPersonName" required>
             </div>
             <div class="mb-3">
-              <label class="form-label small fw-semibold">Individueller Begrüßungstext</label>
-              <input type="text" class="form-control" id="editPersonGreeting" placeholder="{greeting_time}, {name}! Schön dich zu sehen.">
-              <div class="form-text small">Platzhalter: <code>{name}</code>, <code>{greeting_time}</code>, <code>{time}</code></div>
+              <label class="form-label small fw-semibold" data-i18n="modal_person_greeting">Individueller Hinweis (optional)</label>
+              <input type="text" class="form-control" id="editPersonGreeting">
             </div>
             <div class="mb-3">
-              <label class="form-label small fw-semibold">Begrüßungs-Cooldown (Minuten)</label>
+              <label class="form-label small fw-semibold" data-i18n="modal_person_cooldown">Cooldown (Minuten)</label>
               <input type="number" class="form-control" id="editPersonCooldown" min="0" max="1440">
             </div>
             <div class="form-check form-switch mb-3">
               <input class="form-check-input" type="checkbox" id="editPersonEnabled" checked>
-              <label class="form-check-label small" for="editPersonEnabled">Personenerkennung & Begrüßung aktiv</label>
+              <label class="form-check-label small" for="editPersonEnabled" data-i18n="modal_edit_enabled">Personenerkennung aktiv</label>
             </div>
             <div class="pt-3 border-top border-secondary border-opacity-25">
               <div class="d-flex justify-content-between align-items-center mb-2">
-                <label class="form-label small fw-semibold mb-0">Gespeicherte Referenzfotos</label>
+                <label class="form-label small fw-semibold mb-0" data-i18n="modal_ref_photos">Gespeicherte Referenzfotos</label>
                 <div class="d-flex gap-2">
                   <button type="button" class="btn btn-glass btn-sm" id="btnEditCapturePhoto">
-                    <img src="icons3d/camera.png" class="icon3d me-1" alt="">Kamera-Snap
+                    <img src="icons3d/camera.png" class="icon3d me-1" alt=""><span data-i18n="btn_cam_snap">Kamera-Snap</span>
                   </button>
                   <label class="btn btn-glass btn-sm mb-0">
-                    <img src="icons3d/upload.png" class="icon3d me-1" alt="">Upload
+                    <img src="icons3d/upload.png" class="icon3d me-1" alt=""><span data-i18n="btn_upload">Upload</span>
                     <input type="file" accept="image/*" class="d-none" id="inputEditUploadPhoto">
                   </label>
                 </div>
@@ -327,8 +338,8 @@
             </div>
           </div>
           <div class="modal-footer border-0">
-            <button type="button" class="btn btn-glass" data-bs-dismiss="modal">Abbrechen</button>
-            <button type="submit" class="btn btn-neo-primary px-4">Speichern</button>
+            <button type="button" class="btn btn-glass" data-bs-dismiss="modal" data-i18n="btn_cancel">Abbrechen</button>
+            <button type="submit" class="btn btn-neo-primary px-4" data-i18n="btn_save">Speichern</button>
           </div>
         </form>
       </div>
@@ -340,11 +351,11 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content glass-panel border-0 p-2" style="background: var(--glass-modal-bg);">
         <div class="modal-header border-0">
-          <h5 class="modal-title fw-bold"><img src="icons3d/zoom.png" class="icon3d icon3d-lg me-2" alt="">Foto zuschneiden</h5>
+          <h5 class="modal-title fw-bold"><img src="icons3d/zoom.png" class="icon3d icon3d-lg me-2" alt=""><span data-i18n="modal_crop_title">Foto zuschneiden</span></h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body text-center">
-          <div class="small text-secondary mb-2">
+          <div class="small text-secondary mb-2" data-i18n="modal_crop_hint">
             Bild mit der Maus verschieben &amp; per Regler/Mausrad auf das Gesicht zoomen.
           </div>
           <div class="d-inline-block position-relative rounded-4 overflow-hidden border border-info border-opacity-50 mb-3" style="width: 320px; height: 320px; background: #050811; cursor: grab;" id="cropCanvasWrap">
@@ -361,9 +372,9 @@
           </div>
         </div>
         <div class="modal-footer border-0">
-          <button type="button" class="btn btn-glass" data-bs-dismiss="modal">Abbrechen</button>
+          <button type="button" class="btn btn-glass" data-bs-dismiss="modal" data-i18n="btn_cancel">Abbrechen</button>
           <button type="button" class="btn btn-neo-primary px-4" id="btnCropSave">
-            <i class="fa-solid fa-check me-1"></i>Zuschneiden &amp; Speichern
+            <i class="fa-solid fa-check me-1"></i><span data-i18n="btn_crop_save">Zuschneiden &amp; Speichern</span>
           </button>
         </div>
       </div>
@@ -375,7 +386,7 @@
     <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content glass-panel border-0 p-2" style="background: var(--glass-modal-bg);">
         <div class="modal-header border-0">
-          <h5 class="modal-title fw-bold"><img src="icons3d/settings.png" class="icon3d icon3d-lg me-2" alt="">NeoGuard Konfiguration</h5>
+          <h5 class="modal-title fw-bold"><img src="icons3d/settings.png" class="icon3d icon3d-lg me-2" alt=""><span data-i18n="modal_settings_title">NeoGuard Konfiguration</span></h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <form id="settingsForm">
@@ -384,17 +395,17 @@
             <ul class="nav nav-pills neo-settings-tabs gap-2 mb-4" id="settingsTabNav" role="tablist">
               <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="tabCamerasBtn" data-bs-toggle="pill" data-bs-target="#tabCameras" type="button" role="tab">
-                  <img src="icons3d/camera.png" class="icon3d me-1" alt="">Kameras
+                  <img src="icons3d/camera.png" class="icon3d me-1" alt=""><span data-i18n="tab_cameras">Kameras</span>
                 </button>
               </li>
               <li class="nav-item" role="presentation">
                 <button class="nav-link" id="tabGuardBtn" data-bs-toggle="pill" data-bs-target="#tabGuard" type="button" role="tab">
-                  <img src="icons3d/brain.png" class="icon3d me-1" alt="">KI &amp; Erkennung
+                  <img src="icons3d/brain.png" class="icon3d me-1" alt=""><span data-i18n="tab_guard">KI &amp; Erkennung</span>
                 </button>
               </li>
               <li class="nav-item" role="presentation">
                 <button class="nav-link" id="tabLoginBtn" data-bs-toggle="pill" data-bs-target="#tabLogin" type="button" role="tab">
-                  <img src="icons3d/shield.png" class="icon3d me-1" alt="">Login
+                  <img src="icons3d/shield.png" class="icon3d me-1" alt=""><span data-i18n="tab_login">Login</span>
                 </button>
               </li>
             </ul>
@@ -404,12 +415,12 @@
               <div class="tab-pane fade show active" id="tabCameras" role="tabpanel">
                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 p-3 rounded-4 mb-3" style="background: var(--surface-subtle); border: 1px solid var(--glass-border);">
                   <div class="d-flex align-items-center gap-2 flex-grow-1">
-                    <label class="small fw-semibold text-nowrap mb-0">Kamera:</label>
+                    <label class="small fw-semibold text-nowrap mb-0" data-i18n="label_camera">Kamera:</label>
                     <select class="form-select form-select-sm" id="settingsCamSelect" style="max-width: 240px;"></select>
                   </div>
                   <div class="d-flex gap-2">
                     <button type="button" class="btn btn-neo-primary btn-sm" id="btnAddCamera">
-                      <i class="fa-solid fa-plus me-1"></i>Kamera +
+                      <i class="fa-solid fa-plus me-1"></i><span data-i18n="btn_add_camera">Kamera +</span>
                     </button>
                     <button type="button" class="btn btn-glass btn-sm text-danger" id="btnDeleteCamera" title="Gewählte Kamera entfernen">
                       <img src="icons3d/trash.png" class="icon3d" alt="Löschen">
@@ -419,11 +430,11 @@
 
                 <div class="row g-3">
                   <div class="col-md-5">
-                    <label class="form-label small fw-semibold">Kamera-Name (z. B. Flur, Wohnzimmer)</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_cam_name">Kamera-Name (z. B. Flur, Wohnzimmer)</label>
                     <input type="text" class="form-control" id="cfgCamName" placeholder="Kamera 1" required>
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label small fw-semibold">Kamera-Marke / Vorlage</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_brand">Kamera-Marke / Vorlage</label>
                     <select class="form-select" id="cfgBrandPreset">
                       <option value="tapo">TP-Link Tapo (C200/C210/C500)</option>
                       <option value="reolink">Reolink</option>
@@ -431,46 +442,46 @@
                       <option value="dahua">Dahua / Amcrest</option>
                       <option value="imou">Imou</option>
                       <option value="thingino">Thingino (Open-Source Firmware)</option>
-                      <option value="custom">Benutzerdefiniert (RTSP/ONVIF)</option>
+                      <option value="custom">Custom (RTSP/ONVIF)</option>
                     </select>
                   </div>
                   <div class="col-md-3 d-flex align-items-end">
                     <div class="form-check form-switch mb-2">
                       <input class="form-check-input" type="checkbox" id="cfgCamEnabled" checked>
-                      <label class="form-check-label small fw-semibold" for="cfgCamEnabled">Kamera aktiv</label>
+                      <label class="form-check-label small fw-semibold" for="cfgCamEnabled" data-i18n="cfg_cam_active">Kamera aktiv</label>
                     </div>
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label small fw-semibold">Kamera IP-Adresse</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_host">Kamera IP-Adresse</label>
                     <input type="text" class="form-control" id="cfgHost" placeholder="192.168.178.50" required>
                   </div>
                   <div class="col-md-2">
-                    <label class="form-label small fw-semibold">RTSP Port</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_rtsp_port">RTSP Port</label>
                     <input type="number" class="form-control" id="cfgRtspPort" value="554">
                   </div>
                   <div class="col-md-2">
-                    <label class="form-label small fw-semibold">ONVIF Port</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_onvif_port">ONVIF Port</label>
                     <input type="number" class="form-control" id="cfgOnvifPort" value="2020">
                   </div>
                   <div class="col-md-2">
-                    <label class="form-label small fw-semibold">RTSP-Pfad</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_rtsp_path">RTSP-Pfad</label>
                     <input type="text" class="form-control" id="cfgStreamPath" placeholder="stream1" value="stream1">
                   </div>
                   <div class="col-md-2">
-                    <label class="form-label small fw-semibold">ONVIF-Profil</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_onvif_profile">ONVIF-Profil</label>
                     <input type="text" class="form-control" id="cfgOnvifProfile" placeholder="profile_1" value="profile_1">
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label small fw-semibold">Kamera-Konto Benutzer</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_rtsp_user">Kamera-Konto Benutzer</label>
                     <input type="text" class="form-control" id="cfgRtspUser" placeholder="z. B. tapo_admin">
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label small fw-semibold">Kamera-Konto Passwort</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_rtsp_pass">Kamera-Konto Passwort</label>
                     <input type="password" class="form-control" id="cfgRtspPass" placeholder="••••••••">
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label small fw-semibold">TP-Link Cloud-Passwort (PTZ/TPAP)</label>
-                    <input type="password" class="form-control" id="cfgCloudPass" placeholder="Optional falls identisch">
+                    <label class="form-label small fw-semibold" data-i18n="cfg_cloud_pass">TP-Link Cloud-Passwort (PTZ/TPAP)</label>
+                    <input type="password" class="form-control" id="cfgCloudPass" placeholder="Optional">
                   </div>
 
                   <div class="col-12 pt-2 border-top border-secondary border-opacity-25">
@@ -478,18 +489,18 @@
                       <div class="col-md-4">
                         <div class="form-check form-switch">
                           <input class="form-check-input" type="checkbox" id="cfgAutoTracking" checked>
-                          <label class="form-check-label small fw-semibold" for="cfgAutoTracking">Auto-Tracking</label>
+                          <label class="form-check-label small fw-semibold" for="cfgAutoTracking" data-i18n="cfg_auto_track">Auto-Tracking</label>
                         </div>
                       </div>
                       <div class="col-md-4">
                         <div class="form-check form-switch">
                           <input class="form-check-input" type="checkbox" id="cfgTrackingReturnHome" checked>
-                          <label class="form-check-label small" for="cfgTrackingReturnHome">Nach 20s zu Preset 1</label>
+                          <label class="form-check-label small" for="cfgTrackingReturnHome" data-i18n="cfg_return_home">Nach 20s zu Preset 1</label>
                         </div>
                       </div>
                       <div class="col-md-4">
                         <div class="d-flex justify-content-between align-items-center mb-1">
-                          <label class="form-label small fw-semibold mb-0">Tracking-Tempo</label>
+                          <label class="form-label small fw-semibold mb-0" data-i18n="cfg_track_speed">Tracking-Tempo</label>
                           <span class="badge bg-info bg-opacity-25 text-info" id="trackingSpeedVal">1.4x</span>
                         </div>
                         <div class="d-flex align-items-center gap-2">
@@ -504,15 +515,15 @@
                   <div class="col-12 pt-2 border-top border-secondary border-opacity-25">
                     <div class="row g-2">
                       <div class="col-md-4">
-                        <label class="form-label small fw-semibold">Preset 1 Name</label>
+                        <label class="form-label small fw-semibold" data-i18n="cfg_preset_1">Preset 1 Name</label>
                         <input type="text" class="form-control form-control-sm" id="cfgPresetName1" value="Tür / Eingang">
                       </div>
                       <div class="col-md-4">
-                        <label class="form-label small fw-semibold">Preset 2 Name</label>
+                        <label class="form-label small fw-semibold" data-i18n="cfg_preset_2">Preset 2 Name</label>
                         <input type="text" class="form-control form-control-sm" id="cfgPresetName2" value="Raum-Mitte">
                       </div>
                       <div class="col-md-4">
-                        <label class="form-label small fw-semibold">Preset 3 Name</label>
+                        <label class="form-label small fw-semibold" data-i18n="cfg_preset_3">Preset 3 Name</label>
                         <input type="text" class="form-control form-control-sm" id="cfgPresetName3" value="Schreibtisch">
                       </div>
                     </div>
@@ -520,14 +531,14 @@
 
                   <div class="col-12 pt-2 border-top border-secondary border-opacity-25">
                     <div class="d-flex flex-wrap align-items-center gap-2">
-                      <span class="small fw-semibold me-2"><img src="icons3d/brain.png" class="icon3d me-1" alt="">Kamera-Hardware (TPAP):</span>
-                      <button type="button" class="btn btn-glass btn-sm" id="btnHardwareSiren" title="Kamera-Sirene kurz auslösen">
-                        <img src="icons3d/siren.png" class="icon3d me-1" alt="">Sirene
+                      <span class="small fw-semibold me-2"><img src="icons3d/brain.png" class="icon3d me-1" alt=""><span data-i18n="cfg_hw_tpap">Kamera-Hardware (TPAP):</span></span>
+                      <button type="button" class="btn btn-glass btn-sm" id="btnHardwareSiren" title="Sirene">
+                        <img src="icons3d/siren.png" class="icon3d me-1" alt=""><span data-i18n="btn_siren">Sirene</span>
                       </button>
-                      <button type="button" class="btn btn-glass btn-sm" id="btnHardwareLed" title="Status-LED umschalten">
+                      <button type="button" class="btn btn-glass btn-sm" id="btnHardwareLed" title="LED">
                         <img src="icons3d/led.png" class="icon3d me-1" alt="">LED: <span id="hwLedState">AN</span>
                       </button>
-                      <button type="button" class="btn btn-glass btn-sm" id="btnHardwareNight" title="Nachtsicht umschalten (Auto / Ein / Aus)">
+                      <button type="button" class="btn btn-glass btn-sm" id="btnHardwareNight" title="IR">
                         <img src="icons3d/night.png" class="icon3d me-1" alt="">IR: <span id="hwNightState">Auto</span>
                       </button>
                     </div>
@@ -539,26 +550,26 @@
               <div class="tab-pane fade" id="tabGuard" role="tabpanel">
                 <div class="row g-3">
                   <div class="col-md-4">
-                    <label class="form-label small fw-semibold">Überwachung global aktiv</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_guard_enabled">Überwachung global aktiv</label>
                     <select class="form-select" id="cfgGuardEnabled">
-                      <option value="true">Aktiviert</option>
-                      <option value="false">Pausiert</option>
+                      <option value="true" data-i18n="opt_enabled">Aktiviert</option>
+                      <option value="false" data-i18n="opt_paused">Pausiert</option>
                     </select>
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label small fw-semibold">Prüf-Intervall (Sekunden)</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_interval">Prüf-Intervall (Sekunden)</label>
                     <input type="number" step="0.5" min="1" max="60" class="form-control" id="cfgInterval" value="2.0">
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label small fw-semibold">Ereignis-Cooldown (Minuten)</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_cooldown">Ereignis-Cooldown (Minuten)</label>
                     <input type="number" min="0" max="1440" class="form-control" id="cfgCooldown" value="120">
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label small fw-semibold">Erkennungs-Schwelle (0.25 – 0.65)</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_threshold">Erkennungs-Schwelle (0.25 – 0.65)</label>
                     <input type="number" step="0.02" min="0.20" max="0.80" class="form-control" id="cfgThreshold" value="0.38">
                   </div>
                   <div class="col-md-6">
-                    <label class="form-label small fw-semibold">Aktive Uhrzeit (Von – Bis)</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_hours">Aktive Uhrzeit (Von – Bis)</label>
                     <div class="input-group">
                       <input type="time" class="form-control" id="cfgHoursStart" value="06:00">
                       <input type="time" class="form-control" id="cfgHoursEnd" value="23:00">
@@ -567,13 +578,13 @@
                   <div class="col-md-6">
                     <div class="form-check form-switch mt-2">
                       <input class="form-check-input" type="checkbox" id="cfgGreetUnknown">
-                      <label class="form-check-label small fw-semibold" for="cfgGreetUnknown">Auch unbekannte Personen im Log erfassen</label>
+                      <label class="form-check-label small fw-semibold" for="cfgGreetUnknown" data-i18n="cfg_log_unknown">Auch unbekannte Personen im Log erfassen</label>
                     </div>
                   </div>
                   <div class="col-md-6">
                     <div class="form-check form-switch mt-2">
                       <input class="form-check-input" type="checkbox" id="cfgAutoPrivacy">
-                      <label class="form-check-label small fw-semibold" for="cfgAutoPrivacy">Nach Erkennung in Privacy-Mode</label>
+                      <label class="form-check-label small fw-semibold" for="cfgAutoPrivacy" data-i18n="cfg_auto_privacy">Nach Erkennung in Privacy-Mode</label>
                     </div>
                   </div>
                 </div>
@@ -583,24 +594,24 @@
               <div class="tab-pane fade" id="tabLogin" role="tabpanel">
                 <div class="row g-3">
                   <div class="col-md-4">
-                    <label class="form-label small fw-semibold">Aktuelles Passwort</label>
-                    <input type="password" class="form-control" id="cfgAuthCurrentPass" placeholder="Nur bei Änderung">
+                    <label class="form-label small fw-semibold" data-i18n="cfg_cur_pass">Aktuelles Passwort</label>
+                    <input type="password" class="form-control" id="cfgAuthCurrentPass" placeholder="••••••••">
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label small fw-semibold">Benutzername</label>
+                    <label class="form-label small fw-semibold" data-i18n="cfg_new_user">Benutzername</label>
                     <input type="text" class="form-control" id="cfgAuthNewUser" placeholder="admin">
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label small fw-semibold">Neues Passwort</label>
-                    <input type="password" class="form-control" id="cfgAuthNewPass" placeholder="Mind. 4 Zeichen">
+                    <label class="form-label small fw-semibold" data-i18n="cfg_new_pass">Neues Passwort</label>
+                    <input type="password" class="form-control" id="cfgAuthNewPass" placeholder="••••">
                   </div>
                 </div>
               </div>
             </div>
           </div>
           <div class="modal-footer border-0">
-            <button type="button" class="btn btn-glass" data-bs-dismiss="modal">Schließen</button>
-            <button type="submit" class="btn btn-neo-primary px-4">Speichern & Übernehmen</button>
+            <button type="button" class="btn btn-glass" data-bs-dismiss="modal" data-i18n="btn_close">Schließen</button>
+            <button type="submit" class="btn btn-neo-primary px-4" data-i18n="btn_save_apply">Speichern & Übernehmen</button>
           </div>
         </form>
       </div>
@@ -608,6 +619,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
