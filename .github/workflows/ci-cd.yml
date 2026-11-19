@@ -79,7 +79,6 @@ jobs:
         with:
           images: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-            daddelgreis74/tapo-room-guard
           tags: |
             type=raw,value=latest
             type=ref,event=branch
