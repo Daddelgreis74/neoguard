@@ -56,7 +56,12 @@ class TapoCameraService:
         user = (camera_cfg.get("rtsp_user") or "").strip()
         pw = camera_cfg.get("rtsp_pass") or ""
         port = int(camera_cfg.get("rtsp_port") or 554)
-        stream_path = stream or camera_cfg.get("stream_quality") or "stream1"
+        raw_stream = (camera_cfg.get("stream_quality") or stream or "stream1").strip()
+        if raw_stream.lower().startswith("rtsp://"):
+            return raw_stream
+        if host.lower().startswith("rtsp://"):
+            return host
+        stream_path = raw_stream.lstrip("/")
         if not host:
             return None
         if user and pw:
@@ -421,8 +426,12 @@ class TapoCameraService:
                 headers={"Content-Type": "application/soap+xml; charset=utf-8"},
             )
 
+    def _profile_token(self, camera_cfg: Dict[str, Any]) -> str:
+        return xml_escape(str(camera_cfg.get("onvif_profile") or "profile_1"))
+
     def move_ptz(self, camera_cfg: Dict[str, Any], direction: str, step: Optional[int] = None) -> Dict[str, Any]:
-        """Pan/Tilt the Tapo C200 camera via native ONVIF Port 2020."""
+        """Pan/Tilt camera via native ONVIF PTZ."""
+        token = self._profile_token(camera_cfg)
         deg = float(step or camera_cfg.get("ptz_step") or 15)
         norm_step = round(min(0.5, max(0.02, deg / 180.0)), 3)
         px, py = 0.0, 0.0
@@ -442,7 +451,7 @@ class TapoCameraService:
                 camera_cfg,
                 "/onvif/ptz_service",
                 f"""<tptz:RelativeMove>
-  <tptz:ProfileToken>profile_1</tptz:ProfileToken>
+  <tptz:ProfileToken>{token}</tptz:ProfileToken>
   <tptz:Translation>
     <tt:PanTilt x="{px}" y="{py}" space="http://www.onvif.org/ver10/tptz/PanTiltSpaces/TranslationGenericSpace"/>
   </tptz:Translation>
@@ -453,10 +462,11 @@ class TapoCameraService:
         except Exception as exc:
             logger.debug("ONVIF PTZ move failed: %s", exc)
 
-        return {"ok": False, "error": "ONVIF PTZ fehlgeschlagen. Prüfe Kamera-Konto.", "direction": direction}
+        return {"ok": False, "error": "ONVIF PTZ fehlgeschlagen. Prüfe Kamera-Konto & ONVIF-Port.", "direction": direction}
 
     def start_ptz_continuous(self, camera_cfg: Dict[str, Any], direction: str, speed: float = 0.45) -> Dict[str, Any]:
         """Start smooth continuous Pan/Tilt movement via ONVIF ContinuousMove."""
+        token = self._profile_token(camera_cfg)
         vx, vy = 0.0, 0.0
         if direction == "left":
             vx = -speed
@@ -474,7 +484,7 @@ class TapoCameraService:
                 camera_cfg,
                 "/onvif/ptz_service",
                 f"""<tptz:ContinuousMove>
-  <tptz:ProfileToken>profile_1</tptz:ProfileToken>
+  <tptz:ProfileToken>{token}</tptz:ProfileToken>
   <tptz:Velocity>
     <tt:PanTilt x="{vx}" y="{vy}"/>
   </tptz:Velocity>
@@ -488,12 +498,13 @@ class TapoCameraService:
 
     def stop_ptz(self, camera_cfg: Dict[str, Any]) -> Dict[str, Any]:
         """Stop continuous Pan/Tilt movement immediately via ONVIF Stop."""
+        token = self._profile_token(camera_cfg)
         try:
             resp = self._onvif_request(
                 camera_cfg,
                 "/onvif/ptz_service",
-                """<tptz:Stop>
-  <tptz:ProfileToken>profile_1</tptz:ProfileToken>
+                f"""<tptz:Stop>
+  <tptz:ProfileToken>{token}</tptz:ProfileToken>
   <tptz:PanTilt>true</tptz:PanTilt>
   <tptz:Zoom>false</tptz:Zoom>
 </tptz:Stop>""",
@@ -545,12 +556,13 @@ class TapoCameraService:
             return False
 
         self._last_track_ts = now
+        token = self._profile_token(camera_cfg)
         try:
             resp = self._onvif_request(
                 camera_cfg,
                 "/onvif/ptz_service",
                 f"""<tptz:ContinuousMove>
-  <tptz:ProfileToken>profile_1</tptz:ProfileToken>
+  <tptz:ProfileToken>{token}</tptz:ProfileToken>
   <tptz:Velocity>
     <tt:PanTilt x="{vx:.3f}" y="{vy:.3f}"/>
   </tptz:Velocity>
@@ -626,14 +638,15 @@ class TapoCameraService:
         return res
 
     def goto_preset(self, camera_cfg: Dict[str, Any], preset_id: str) -> Dict[str, Any]:
-        """Move camera to a saved PTZ preset via ONVIF Port 2020."""
+        """Move camera to a saved PTZ preset via ONVIF."""
         safe_preset = xml_escape(str(preset_id))
+        token = self._profile_token(camera_cfg)
         try:
             resp = self._onvif_request(
                 camera_cfg,
                 "/onvif/ptz_service",
                 f"""<tptz:GotoPreset>
-  <tptz:ProfileToken>profile_1</tptz:ProfileToken>
+  <tptz:ProfileToken>{token}</tptz:ProfileToken>
   <tptz:PresetToken>{safe_preset}</tptz:PresetToken>
 </tptz:GotoPreset>""",
             )
@@ -645,14 +658,15 @@ class TapoCameraService:
             return {"ok": False, "error": str(exc)}
 
     def save_preset(self, camera_cfg: Dict[str, Any], preset_id: str) -> Dict[str, Any]:
-        """Save current camera PTZ position into preset_id via ONVIF Port 2020."""
+        """Save current camera PTZ position into preset_id via ONVIF."""
+        token = self._profile_token(camera_cfg)
         try:
             # Ensure earlier presets exist if user saves slot 2 or 3 first
             target_num = int(preset_id) if preset_id.isdigit() else 1
             for slot in range(1, target_num + 1):
                 slot_str = str(slot)
                 xml_body = f"""<tptz:SetPreset>
-  <tptz:ProfileToken>profile_1</tptz:ProfileToken>
+  <tptz:ProfileToken>{token}</tptz:ProfileToken>
   <tptz:PresetName>Pos{xml_escape(slot_str)}</tptz:PresetName>
   <tptz:PresetToken>{xml_escape(slot_str)}</tptz:PresetToken>
 </tptz:SetPreset>""" if slot == target_num else ""
@@ -666,7 +680,7 @@ class TapoCameraService:
                     camera_cfg,
                     "/onvif/ptz_service",
                     f"""<tptz:SetPreset>
-  <tptz:ProfileToken>profile_1</tptz:ProfileToken>
+  <tptz:ProfileToken>{token}</tptz:ProfileToken>
   <tptz:PresetName>Pos{xml_escape(str(preset_id))}</tptz:PresetName>
 </tptz:SetPreset>""",
                 )

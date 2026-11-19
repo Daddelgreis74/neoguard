@@ -72,12 +72,14 @@ app = FastAPI(
 class CameraSettingsUpdate(BaseModel):
     name: Optional[str] = None
     enabled: Optional[bool] = None
+    brand_preset: Optional[str] = None
     host: Optional[str] = None
     rtsp_user: Optional[str] = None
     rtsp_pass: Optional[str] = None
     cloud_password: Optional[str] = None
     rtsp_port: Optional[int] = None
     onvif_port: Optional[int] = None
+    onvif_profile: Optional[str] = None
     stream_quality: Optional[str] = None
     preview_stream: Optional[str] = None
     ptz_step: Optional[int] = None
@@ -506,7 +508,7 @@ def capture_person_photo_from_camera(person_id: str, camera_id: Optional[str] = 
         raise HTTPException(status_code=404, detail="Person nicht gefunden.")
 
     cam = store.get_camera(camera_id)
-    frame = camera_manager.get_service(cam.get("id")).capture_frame(cam, stream="stream1")
+    frame = camera_manager.get_service(cam.get("id")).capture_frame(cam, stream=cam.get("stream_quality", "stream1"))
     if frame is None:
         raise HTTPException(
             status_code=503,
@@ -580,7 +582,7 @@ def get_last_tts_wav() -> FileResponse:
 def trigger_manual_scan(camera_id: Optional[str] = None) -> Dict[str, Any]:
     cam = store.get_camera(camera_id)
     svc = camera_manager.get_service(cam.get("id"))
-    frame = svc.capture_frame(cam, stream="stream1")
+    frame = svc.capture_frame(cam, stream=cam.get("stream_quality", "stream1"))
     if frame is None:
         return {
             "ok": False,

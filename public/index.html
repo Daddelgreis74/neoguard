@@ -58,7 +58,7 @@
         <div>
           <h5 class="mb-0 fw-bold brand-wordmark">Neo<span class="brand-accent">Guard</span></h5>
           <div class="small text-secondary">
-            <span>TP-Link Tapo C200</span> ·
+            <span>AI Camera Guard</span> ·
             <span id="engineBadge" class="text-info">100% Lokal (Offline Vision)</span>
           </div>
         </div>
@@ -418,27 +418,46 @@
                 </div>
 
                 <div class="row g-3">
-                  <div class="col-md-8">
+                  <div class="col-md-5">
                     <label class="form-label small fw-semibold">Kamera-Name (z. B. Flur, Wohnzimmer)</label>
                     <input type="text" class="form-control" id="cfgCamName" placeholder="Kamera 1" required>
                   </div>
-                  <div class="col-md-4 d-flex align-items-end">
+                  <div class="col-md-4">
+                    <label class="form-label small fw-semibold">Kamera-Marke / Vorlage</label>
+                    <select class="form-select" id="cfgBrandPreset">
+                      <option value="tapo">TP-Link Tapo (C200/C210/C500)</option>
+                      <option value="reolink">Reolink</option>
+                      <option value="hikvision">Hikvision / Annke</option>
+                      <option value="dahua">Dahua / Amcrest</option>
+                      <option value="imou">Imou</option>
+                      <option value="custom">Benutzerdefiniert (RTSP/ONVIF)</option>
+                    </select>
+                  </div>
+                  <div class="col-md-3 d-flex align-items-end">
                     <div class="form-check form-switch mb-2">
                       <input class="form-check-input" type="checkbox" id="cfgCamEnabled" checked>
                       <label class="form-check-label small fw-semibold" for="cfgCamEnabled">Kamera aktiv</label>
                     </div>
                   </div>
-                  <div class="col-md-6">
+                  <div class="col-md-4">
                     <label class="form-label small fw-semibold">Kamera IP-Adresse</label>
                     <input type="text" class="form-control" id="cfgHost" placeholder="192.168.178.50" required>
                   </div>
-                  <div class="col-md-3">
+                  <div class="col-md-2">
                     <label class="form-label small fw-semibold">RTSP Port</label>
                     <input type="number" class="form-control" id="cfgRtspPort" value="554">
                   </div>
-                  <div class="col-md-3">
+                  <div class="col-md-2">
                     <label class="form-label small fw-semibold">ONVIF Port</label>
                     <input type="number" class="form-control" id="cfgOnvifPort" value="2020">
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label small fw-semibold">RTSP-Pfad</label>
+                    <input type="text" class="form-control" id="cfgStreamPath" placeholder="stream1" value="stream1">
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label small fw-semibold">ONVIF-Profil</label>
+                    <input type="text" class="form-control" id="cfgOnvifProfile" placeholder="profile_1" value="profile_1">
                   </div>
                   <div class="col-md-4">
                     <label class="form-label small fw-semibold">Kamera-Konto Benutzer</label>

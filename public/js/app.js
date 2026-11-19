@@ -188,9 +188,13 @@
 
     document.getElementById("cfgCamName").value = cam.name || "Kamera 1";
     document.getElementById("cfgCamEnabled").checked = cam.enabled !== false;
+    const brandSel = document.getElementById("cfgBrandPreset");
+    if (brandSel) brandSel.value = cam.brand_preset || "tapo";
     document.getElementById("cfgHost").value = cam.host || "";
     document.getElementById("cfgRtspPort").value = cam.rtsp_port || 554;
     document.getElementById("cfgOnvifPort").value = cam.onvif_port || 2020;
+    document.getElementById("cfgStreamPath").value = cam.stream_quality || "stream1";
+    document.getElementById("cfgOnvifProfile").value = cam.onvif_profile || "profile_1";
     document.getElementById("cfgRtspUser").value = cam.rtsp_user || "";
     document.getElementById("cfgRtspPass").value = cam.rtsp_pass || "";
     document.getElementById("cfgCloudPass").value = cam.cloud_password || "";
@@ -1017,6 +1021,24 @@
     }
   });
 
+  // Brand Preset Auto-Fill for universal RTSP / ONVIF cameras
+  const CAMERA_BRAND_PRESETS = {
+    tapo: { rtsp_port: 554, onvif_port: 2020, stream_quality: "stream1", onvif_profile: "profile_1" },
+    reolink: { rtsp_port: 554, onvif_port: 8000, stream_quality: "h264Preview_01_main", onvif_profile: "main" },
+    hikvision: { rtsp_port: 554, onvif_port: 80, stream_quality: "Streaming/Channels/101", onvif_profile: "Profile_1" },
+    dahua: { rtsp_port: 554, onvif_port: 80, stream_quality: "cam/realmonitor?channel=1&subtype=0", onvif_profile: "MediaProfile000" },
+    imou: { rtsp_port: 554, onvif_port: 80, stream_quality: "cam/realmonitor?channel=1&subtype=0", onvif_profile: "MediaProfile000" },
+  };
+
+  document.getElementById("cfgBrandPreset")?.addEventListener("change", (e) => {
+    const preset = CAMERA_BRAND_PRESETS[e.target.value];
+    if (!preset) return;
+    document.getElementById("cfgRtspPort").value = preset.rtsp_port;
+    document.getElementById("cfgOnvifPort").value = preset.onvif_port;
+    document.getElementById("cfgStreamPath").value = preset.stream_quality;
+    document.getElementById("cfgOnvifProfile").value = preset.onvif_profile;
+  });
+
   // Settings Camera Selector, + Kamera, Delete Kamera
   document.getElementById("settingsCamSelect")?.addEventListener("change", (e) => {
     populateSettingsCamera(e.target.value);
@@ -1063,9 +1085,12 @@
     const camPayload = {
       name: document.getElementById("cfgCamName").value.trim() || "Kamera 1",
       enabled: document.getElementById("cfgCamEnabled").checked,
+      brand_preset: document.getElementById("cfgBrandPreset")?.value || "tapo",
       host: document.getElementById("cfgHost").value.trim(),
       rtsp_port: parseInt(document.getElementById("cfgRtspPort").value, 10) || 554,
       onvif_port: parseInt(document.getElementById("cfgOnvifPort").value, 10) || 2020,
+      stream_quality: document.getElementById("cfgStreamPath")?.value.trim() || "stream1",
+      onvif_profile: document.getElementById("cfgOnvifProfile")?.value.trim() || "profile_1",
       rtsp_user: document.getElementById("cfgRtspUser").value.trim(),
       rtsp_pass: document.getElementById("cfgRtspPass").value,
       cloud_password: document.getElementById("cfgCloudPass").value,
