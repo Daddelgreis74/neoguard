@@ -1,38 +1,51 @@
-# 🛡️ NeoGuard
+# 🛡️ NeoGuard — AI Camera Guard
 
-**100 % Lokale KI-Raumüberwachung, Personen-Tracking, Gesichtserkennung & Sprachbegrüßung über den eingebauten Lautsprecher der TP-Link Tapo C200.**
+<p align="center">
+  <img src="public/icons3d/neoguard-logo.png" alt="NeoGuard Logo" width="128" height="128">
+</p>
 
-Keine Cloud-API, keine monatlichen Kosten: Alle Video-Analysen (OpenCV YuNet + SFace ONNX + HOG Ganzkörper-Fallback) und die deutsche Sprachsynthese (**Piper TTS**) laufen vollständig offline im Docker-Container und geben die Begrüßung direkt über den **integrierten Lautsprecher der Tapo C200** (`pcm_alaw` 8000 Hz Backchannel via `go2rtc` auf Port `8800`) aus.
+**100% Local Multi-Camera AI Security, Person Tracking, Face Recognition & 48-Hour Unknown Event Logging for RTSP / ONVIF IP Cameras.**
 
----
-
-## ✨ Hauptfunktionen
-
-### 1. Live-Ansicht, Digital-Zoom & PTZ-Steuerung
-- **Flüssiger Live-Stream (~15 FPS):** Ein dauerhafter RTSP-Reader-Thread hält die Verbindung zur Kamera offen und liefert verzögerungsfreie Live-Bilder in voller Auflösung ans Web-Dashboard.
-- **Digital-Zoom (`1.0x – 4.0x`):** Stufenloses Rein- und Rauszoomen per Regler, `-` / `+`-Buttons oder **Mausrad** direkt auf dem Videobild – inklusive **Drag-to-Pan** (Bildausschnitt mit gedrückter Maustaste verschieben).
-- **Stufenlose ONVIF-PTZ-Steuerung (`Port 2020`):** Über das Steuerkreuz (`ContinuousMove` + `Stop`) schwenkt und neigt die Kamera flüssig, solange die Taste gedrückt gehalten wird.
-- **Schnell-Positionen (Presets 1–3):** Gespeicherte Blickwinkel (z. B. *Tür / Eingang*, *Raum-Mitte*, *Schreibtisch*) lassen sich per 1-Klick anfahren oder direkt über das **Speichern-Symbol (💾)** fest in der Tapo C200 hinterlegen.
-
-### 2. KI-Auto-Tracking & Automatische Rückkehr
-- **Personenverfolgung beim Laufen:** Erkennt die KI eine Person außerhalb der Bildmitte, schwenkt die Tapo C200 automatisch hinterher:
-  - **Primär:** OpenCV **YuNet** (präzise Gesichtszentrierung).
-  - **Fallback:** OpenCV **HOG Ganzkörper-Erkennung**, damit die Kamera auch dann weiter folgt, wenn man seitlich läuft oder ihr den Rücken zukehrt.
-- **Tracking-Tempo-Skala (`0.3x – 2.5x`):** Über den Schieberegler (`-` / `+`) unter den Presets lässt sich die Reaktionsgeschwindigkeit der Motor-Nachführung live mit der Maus anpassen.
-- **Automatische Rückkehr zu Preset 1:** Sobald 20 Sekunden lang keine Person mehr im Bild ist, fährt die Kamera automatisch auf ihre Ausgangsposition (**Preset 1**) zurück.
-
-### 3. Lokale Gesichtserkennung & Sprachausgabe (Piper TTS)
-- **100 % Offline-Gesichtserkennung:** OpenCV **YuNet** (Detektion) + **SFace** (128-D Cosine-Similarity Embeddings). Referenzfotos lassen sich hochladen oder per **1-Klick Kamera-Snap** direkt aufnehmen.
-- **100 % Offline deutsche Sprachausgabe:** Vorinstalliertes natives C++-Binary von **Piper TTS** (`de_DE-thorsten-medium` & `de_DE-kerstin-low`) mit Platzhaltern `{name}`, `{greeting_time}` (*Guten Morgen / Guten Tag / Guten Abend*) und `{time}`.
-- **Tapo C200 V5 / Firmware 1.5+ Lautsprecher-Ausgabe:** `go2rtc` nutzt automatisch den erforderlichen **Großbuchstaben-SHA256-Hash** des TP-Link Cloud-Passworts für den 2-Wege-Audio-Backchannel (`tapo://admin:<SHA256>@<ip>`).
-- **Cooldown & Aktivzeiten:** Verhindert wiederholte Begrüßungen pro Person (z. B. 120 Minuten Cooldown) und respektiert konfigurierbare Uhrzeiten (z. B. `06:00–23:00`).
-
-### 4. Neo Deck Aurora & Nordic Glassmorphism Web-UI
-- Dark- und Light-Mode, Live-Durchsage-Tester (`Sprechen`), Personen-Karten, Schnellschalter für `Tracking: AN/AUS` und `Privacy` sowie ein Erkennungs-Log mit Kamera-Snapshots.
+No cloud subscriptions, no external AI APIs: all video analysis (**YOLOv8n** person detection + **OpenCV YuNet** face detection + **SFace ONNX** 128-D embeddings) runs completely offline inside the Docker container.
 
 ---
 
-## 🚀 Schnellstart (Docker Compose / TrueNAS SCALE)
+## ✨ Key Features
+
+### 1. Multi-Camera Management & Universal Compatibility
+- **Simultaneous Background Monitoring:** Manage multiple cameras in parallel — switch quickly via camera pills or toggle the **All Cameras** 2-column live grid view.
+- **Universal RTSP & ONVIF Presets:** Built-in templates for popular camera brands and open-source firmware, plus full custom configuration (`RTSP Port`, `ONVIF Port`, `RTSP Stream Path`, `ONVIF Profile Token`):
+
+| Brand / Firmware Preset | RTSP Port | ONVIF Port | Default RTSP Path | ONVIF Profile Token |
+| :--- | :---: | :---: | :--- | :--- |
+| **TP-Link Tapo** (C200/C210/C500) | `554` | `2020` | `stream1` | `profile_1` |
+| **Reolink** | `554` | `8000` | `h264Preview_01_main` | `main` |
+| **Hikvision / Annke** | `554` | `80` | `Streaming/Channels/101` | `Profile_1` |
+| **Dahua / Amcrest** | `554` | `80` | `cam/realmonitor?channel=1&subtype=0` | `MediaProfile000` |
+| **Imou** | `554` | `80` | `cam/realmonitor?channel=1&subtype=0` | `MediaProfile000` |
+| **Thingino** (Open-Source Firmware) | `554` | `80` | `ch0` | `Profile_0` |
+| **Custom (RTSP / ONVIF)** | Custom | Custom | Custom path or full `rtsp://...` URL | Custom |
+
+### 2. Local AI Face Recognition & 48h Unknown Event Log
+- **Known Persons = OK:** Recognized household members only update their `last_seen` timestamp without spamming event logs or snapshots.
+- **48-Hour Unknown Person Retention:** Unrecognized persons are logged with camera name badges and annotated snapshots, and automatically pruned after **48 hours** (`event_retention_hours: 48`).
+- **In-Browser Crop & Enrollment:** Upload reference photos or capture directly from any camera with interactive crop/zoom/rotate editing.
+- **Collapsible Persons Drawer:** Space-saving avatar preview bar with smooth expand/collapse drawer.
+
+### 3. Live View, Digital Zoom & ONVIF PTZ Auto-Tracking
+- **Live MJPEG Stream & Digital Zoom (`1.0x – 4.0x`):** Smooth zoom via slider, mouse wheel, and drag-to-pan.
+- **Hold-to-Move ONVIF PTZ & Presets 1–3:** Continuous pan/tilt control, center stream-refresh button, hardware preset saving (`💾`), and editable preset names per camera.
+- **Configurable Auto-Tracking (`0.3x – 5.0x`):** Follows detected persons smoothly and returns to Preset 1 after inactivity.
+- **TP-Link Tapo TPAP Hardware Controls:** Integrated siren, status LED, night vision (`Auto / On / Off`), and privacy mode support.
+
+### 4. Neo Deck Aurora UI & Security
+- **Dark & Light Mode** with custom transparent **3D icon set** (`public/icons3d/`).
+- **Organized 3-Tab Settings Modal:** `Cameras`, `AI & Detection`, and `Login`.
+- **Session Protection:** PBKDF2-SHA256 authentication with signed `HttpOnly` session cookies (`neoguard_session`, default credentials `admin` / `tapo1234` — changeable in Settings or via `AUTH_USER` / `AUTH_PASS`).
+
+---
+
+## 🚀 Quick Start (Docker Compose)
 
 ```yaml
 services:
@@ -45,30 +58,22 @@ services:
     environment:
       - TZ=Europe/Berlin
       - PORT=30504
-      - TAPO_HOST=192.168.178.101
-      - TAPO_RTSP_USER=dein_kamera_user
-      - TAPO_RTSP_PASS=dein_kamera_passwort
-      - TAPO_CLOUD_PASS=dein_tplink_cloud_passwort
+      - TAPO_HOST=192.168.178.50
+      - TAPO_RTSP_USER=your_camera_user
+      - TAPO_RTSP_PASS=your_camera_password
+      - TAPO_CLOUD_PASS=your_tplink_cloud_password
     volumes:
       - ./data:/app/data
 ```
 
-Nach dem Start ist das Web-Dashboard erreichbar unter:
-👉 **`http://<server-ip>:30504`**
-
-### TrueNAS SCALE (`ix-app` / Katalog)
-In TrueNAS SCALE lässt sich der Container sauber über **Apps → Discover Apps → Custom App** (oder den TrueNAS-Katalog) einrichten:
-- **Repository:** `ghcr.io/daddelgreis74/neoguard` · **Tag:** `latest`
-- **Port:** Host `30504` → Container `30504` (`TCP`, `published`, fortlaufender `30xxx`-TrueNAS-Katalogport)
-- **Storage:** `ixVolume` (`data`) gemountet auf `/app/data`
-- **Portal:** HTTP auf Node-IP, Port `30504`, Pfad `/` (für den direkten *Web UI*-Button)
-- **Logo:** `public/icons3d/neoguard-logo.png` (256×256 PNG)
+Open the Web UI at: **`http://<server-ip>:30504`**
 
 ---
 
-## 📷 Vorbereitung in der TP-Link Tapo App
+## 🧩 TrueNAS SCALE Catalog Metadata
 
-1. Öffne die **Tapo App** auf dem Smartphone und wähle deine **Tapo C200**.
-2. Gehe auf **Kamera-Einstellungen ⚙️ → Erweiterte Einstellungen → Kamera-Konto** und lege einen lokalen Benutzernamen + Passwort für **RTSP (Port `554`) & ONVIF (Port `2020`)** an.
-3. Aktiviere unter **Ich → Tapo Lab** die Option **Kompatibilität mit Drittanbietern** (falls vorhanden).
-4. Trage im **NeoGuard Web-UI** unter **Kamera & KI-Setup** die IP-Adresse der C200, das Kamera-Konto sowie für die Lautsprecher-Ausgabe (Port `8800`) dein **TP-Link Cloud-Passwort** ein.
+- **Container Image:** `ghcr.io/daddelgreis74/neoguard:latest`
+- **Default Host & Container Port:** `30504` (`TCP`, TrueNAS `30xxx` catalog port range)
+- **Persistent Storage:** `/app/data` (`config.json`, `events.json`, `faces/`, `snapshots/`, `models/`)
+- **Web UI Portal:** `http://<node-ip>:30504/`
+- **App Icon (`256x256` transparent PNG):** `public/icons3d/neoguard-logo.png`
