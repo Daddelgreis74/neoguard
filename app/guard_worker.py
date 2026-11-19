@@ -12,7 +12,7 @@ from app.config import ConfigStore
 from app.face_service import LocalFaceService
 from app.tts_service import LocalTTSService
 
-logger = logging.getLogger("tapo_room_guard.worker")
+logger = logging.getLogger("neoguard.worker")
 
 
 def get_german_time_greeting(now: Optional[datetime] = None) -> str:

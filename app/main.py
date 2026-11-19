@@ -27,7 +27,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("tapo_room_guard")
+logger = logging.getLogger("neoguard")
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
 PUBLIC_DIR = Path(__file__).resolve().parent.parent / "public"
@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Tapo Room Guard",
+    title="NeoGuard",
     description="100% Local AI Room Monitoring, Face Recognition & Speaker Greeting for TP-Link Tapo C200",
     version=__version__,
     lifespan=lifespan,
@@ -151,7 +151,7 @@ class PasswordChangeRequest(BaseModel):
 
 # -------------------- Auth Middleware & Helpers --------------------
 
-SESSION_COOKIE_NAME = "tapo_guard_session"
+SESSION_COOKIE_NAME = "neoguard_session"
 SESSION_TTL_SEC = 30 * 24 * 3600  # 30 days
 PUBLIC_API_PATHS = frozenset({"/api/health", "/api/auth/status", "/api/auth/login", "/api/auth/logout"})
 
@@ -514,7 +514,7 @@ def speak_text_on_camera(payload: SpeakRequest) -> Dict[str, Any]:
 @app.get("/api/tts/last.wav")
 def get_last_tts_wav() -> FileResponse:
     if not tts_service.last_wav_path.exists():
-        tts_service.synthesize_to_wav("Hallo! Tapo Room Guard ist bereit.")
+        tts_service.synthesize_to_wav("Hallo! NeoGuard ist bereit.")
     return FileResponse(tts_service.last_wav_path, media_type="audio/wav")
 
 

@@ -1,4 +1,4 @@
-# 🛡️ Tapo Room Guard
+# 🛡️ NeoGuard
 
 **100 % Lokale KI-Raumüberwachung, Personen-Tracking, Gesichtserkennung & Sprachbegrüßung über den eingebauten Lautsprecher der TP-Link Tapo C200.**
 
@@ -36,9 +36,9 @@ Keine Cloud-API, keine monatlichen Kosten: Alle Video-Analysen (OpenCV YuNet + S
 
 ```yaml
 services:
-  tapo-room-guard:
-    image: daddelgreis74/tapo-room-guard:latest
-    container_name: tapo-room-guard
+  neoguard:
+    image: ghcr.io/daddelgreis74/neoguard:latest
+    container_name: neoguard
     restart: unless-stopped
     ports:
       - "8095:8095"
@@ -58,7 +58,7 @@ Nach dem Start ist das Web-Dashboard erreichbar unter:
 
 ### TrueNAS SCALE (`ix-app` Custom App)
 In TrueNAS SCALE lässt sich der Container sauber über **Apps → Discover Apps → Custom App** einrichten:
-- **Repository:** `daddelgreis74/tapo-room-guard` · **Tag:** `latest`
+- **Repository:** `ghcr.io/daddelgreis74/neoguard` · **Tag:** `latest`
 - **Port:** Host `8095` → Container `8095` (`TCP`, `published`)
 - **Storage:** `ixVolume` (`data`) gemountet auf `/app/data`
 - **Portal:** HTTP auf Node-IP, Port `8095`, Pfad `/` (für den direkten *Web UI*-Button)
@@ -70,4 +70,4 @@ In TrueNAS SCALE lässt sich der Container sauber über **Apps → Discover Apps
 1. Öffne die **Tapo App** auf dem Smartphone und wähle deine **Tapo C200**.
 2. Gehe auf **Kamera-Einstellungen ⚙️ → Erweiterte Einstellungen → Kamera-Konto** und lege einen lokalen Benutzernamen + Passwort für **RTSP (Port `554`) & ONVIF (Port `2020`)** an.
 3. Aktiviere unter **Ich → Tapo Lab** die Option **Kompatibilität mit Drittanbietern** (falls vorhanden).
-4. Trage im **Tapo Room Guard Web-UI** unter **Kamera & KI-Setup** die IP-Adresse der C200, das Kamera-Konto sowie für die Lautsprecher-Ausgabe (Port `8800`) dein **TP-Link Cloud-Passwort** ein.
+4. Trage im **NeoGuard Web-UI** unter **Kamera & KI-Setup** die IP-Adresse der C200, das Kamera-Konto sowie für die Lautsprecher-Ausgabe (Port `8800`) dein **TP-Link Cloud-Passwort** ein.

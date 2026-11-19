@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import httpx
 
-logger = logging.getLogger("tapo_room_guard.tts")
+logger = logging.getLogger("neoguard.tts")
 
 PIPER_VOICES: Dict[str, Dict[str, str]] = {
     "de_DE-thorsten-medium": {

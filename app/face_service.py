@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
-logger = logging.getLogger("tapo_room_guard.face")
+logger = logging.getLogger("neoguard.face")
 
 YUNET_URL = (
     "https://github.com/opencv/opencv_zoo/raw/main/models/"

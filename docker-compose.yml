@@ -1,8 +1,8 @@
 services:
-  tapo-room-guard:
+  neoguard:
     build: .
-    image: daddelgreis74/tapo-room-guard:latest
-    container_name: tapo-room-guard
+    image: ghcr.io/daddelgreis74/neoguard:latest
+    container_name: neoguard
     restart: unless-stopped
     ports:
       - "8095:8095"

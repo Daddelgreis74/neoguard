@@ -18,7 +18,7 @@ import cv2
 import httpx
 import numpy as np
 
-logger = logging.getLogger("tapo_room_guard.camera")
+logger = logging.getLogger("neoguard.camera")
 
 
 class TapoCameraService:
@@ -248,7 +248,7 @@ class TapoCameraService:
         cv2.putText(img, title, (40, 165), cv2.FONT_HERSHEY_SIMPLEX, 0.72, color, 2, cv2.LINE_AA)
         cv2.putText(img, sub, (40, 205), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (200, 210, 225), 1, cv2.LINE_AA)
         ts = time.strftime("%H:%M:%S")
-        cv2.putText(img, f"Tapo Room Guard  |  {ts}", (40, 325), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (130, 145, 165), 1, cv2.LINE_AA)
+        cv2.putText(img, f"NeoGuard  |  {ts}", (40, 325), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (130, 145, 165), 1, cv2.LINE_AA)
         return img
 
     def set_ai_overlay_enabled(self, enabled: bool) -> None:

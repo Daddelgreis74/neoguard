@@ -38,7 +38,7 @@
 
   // -------------------- Theme Toggle --------------------
   const initTheme = () => {
-    const saved = localStorage.getItem("tapo_guard_theme") || "dark";
+    const saved = localStorage.getItem("neoguard_theme") || "dark";
     document.documentElement.setAttribute("data-bs-theme", saved);
     const icon = document.getElementById("themeIcon");
     if (icon) icon.className = saved === "dark" ? "fa-solid fa-sun" : "fa-solid fa-moon";
@@ -47,7 +47,7 @@
   document.getElementById("btnThemeToggle")?.addEventListener("click", () => {
     const cur = document.documentElement.getAttribute("data-bs-theme") || "dark";
     const next = cur === "dark" ? "light" : "dark";
-    localStorage.setItem("tapo_guard_theme", next);
+    localStorage.setItem("neoguard_theme", next);
     initTheme();
   });
 
