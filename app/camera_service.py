@@ -250,21 +250,22 @@ class TapoCameraService:
             img[y, :] = (28 + y // 18, 18 + y // 24, 10 + y // 30)
 
         host = camera_cfg.get("host") or "Nicht konfiguriert"
+        cam_name = camera_cfg.get("name") or "Kamera"
         if not camera_cfg.get("enabled", True):
             title = "KAMERA DEAKTIVIERT / PAUSED"
-            sub = f"{camera_cfg.get('name') or 'Kamera'} ({host}) — Stream & KI gestoppt"
+            sub = f"{cam_name} ({host}) - Stream & KI gestoppt"
             color = (148, 163, 184)
         elif self._privacy_enabled:
             title = "PRIVATSPHAERE-MODUS AKTIV"
-            sub = f"Tapo C200 ({host}) — Linse verdeckt"
+            sub = f"{cam_name} ({host}) - Linse verdeckt"
             color = (128, 220, 56)
         elif not camera_cfg.get("rtsp_user"):
-            title = "TAPO C200 — KAMERA-KONTO EINRICHTEN"
-            sub = f"IP: {host} (RTSP Port 554 / ONVIF 2020)"
+            title = f"{cam_name.upper()} - KAMERA-KONTO EINRICHTEN"
+            sub = f"IP: {host} (RTSP Port {camera_cfg.get('rtsp_port', 554)} / ONVIF {camera_cfg.get('onvif_port', 2020)})"
             color = (248, 189, 56)
         else:
             title = "WARTE AUF RTSP-VERBINDUNG..."
-            sub = f"rtsp://{camera_cfg.get('rtsp_user')}@{host}:554"
+            sub = f"rtsp://{camera_cfg.get('rtsp_user')}@{host}:{camera_cfg.get('rtsp_port', 554)}"
             color = (180, 160, 255)
 
         cv2.putText(img, title, (40, 165), cv2.FONT_HERSHEY_SIMPLEX, 0.72, color, 2, cv2.LINE_AA)
