@@ -21,7 +21,7 @@
     const el = document.getElementById("statusAlert");
     if (!el) return;
     el.className = `alert alert-${type} py-2 px-3 small rounded-3 floating-status-toast`;
-    el.innerHTML = `<i class="fa-solid fa-circle-info me-2"></i>${msg}`;
+    el.innerHTML = `<img src="icons3d/shield.png" class="icon3d icon3d-sm me-2" alt="">${msg}`;
     el.classList.remove("d-none");
     if (statusTimer) clearTimeout(statusTimer);
     statusTimer = setTimeout(() => el.classList.add("d-none"), 4000);
@@ -55,7 +55,7 @@
     const saved = localStorage.getItem("neoguard_theme") || "dark";
     document.documentElement.setAttribute("data-bs-theme", saved);
     const icon = document.getElementById("themeIcon");
-    if (icon) icon.className = saved === "dark" ? "fa-solid fa-sun" : "fa-solid fa-moon";
+    if (icon) icon.src = saved === "dark" ? "icons3d/sun.png" : "icons3d/night.png";
   };
 
   document.getElementById("btnThemeToggle")?.addEventListener("click", () => {
@@ -157,7 +157,7 @@
       .map(
         (c) => `
       <button type="button" class="btn btn-glass btn-sm cam-pill-btn ${!multiGridMode && c.id === selectedCameraId ? "active" : ""}" data-select-cam="${escapeHtml(c.id)}">
-        <i class="fa-solid fa-video me-1"></i>${escapeHtml(c.name)}
+        <img src="icons3d/camera.png" class="icon3d icon3d-sm me-1" alt="">${escapeHtml(c.name)}
       </button>`
       )
       .join("");
@@ -239,10 +239,10 @@
       const badge = document.getElementById("guardActiveBadge");
       if (guard.enabled) {
         badge.className = "badge rounded-pill text-bg-success px-3 py-2";
-        badge.innerHTML = `<i class="fa-solid fa-shield-halved me-1"></i>Überwachung Aktiv (${guard.active_hours_start}–${guard.active_hours_end})`;
+        badge.innerHTML = `<img src="icons3d/shield.png" class="icon3d icon3d-sm me-1" alt="">Überwachung Aktiv (${guard.active_hours_start}–${guard.active_hours_end})`;
       } else {
         badge.className = "badge rounded-pill text-bg-secondary px-3 py-2";
-        badge.innerHTML = `<i class="fa-solid fa-pause me-1"></i>Überwachung Pausiert`;
+        badge.innerHTML = `<img src="icons3d/privacy.png" class="icon3d icon3d-sm me-1" alt="">Überwachung Pausiert`;
       }
 
       // Populate Settings Modal (3 Tabs)
@@ -282,7 +282,7 @@
 
     if (previewBar) {
       if (!persons.length) {
-        previewBar.innerHTML = `<span class="small text-secondary"><i class="fa-solid fa-user-astronaut me-1"></i>Noch keine Personen hinterlegt – zum Öffnen klicken</span>`;
+        previewBar.innerHTML = `<span class="small text-secondary"><img src="icons3d/users.png" class="icon3d icon3d-sm me-1" alt="">Noch keine Personen hinterlegt – zum Öffnen klicken</span>`;
       } else {
         previewBar.innerHTML = persons
           .map((p) => {
@@ -302,8 +302,8 @@
     if (!persons.length) {
       container.innerHTML = `
         <div class="text-center text-secondary py-4 small">
-          <i class="fa-solid fa-user-astronaut fa-2x mb-2 opacity-50 d-block"></i>
-          Noch keine Personen hinterlegt. Lege eine Person an und nimm ein Referenzfoto über die Tapo C200 auf!
+          <img src="icons3d/users.png" class="icon3d-xl mb-2 d-block mx-auto" alt="">
+          Noch keine Personen hinterlegt. Lege eine Person an und nimm ein Referenzfoto über die Kamera auf!
         </div>
       `;
       return;
@@ -335,23 +335,23 @@
               </div>
               <div class="d-flex gap-1">
                 <button class="btn btn-glass btn-sm text-info" data-edit-person="${escapeHtml(p.id)}" title="Person bearbeiten">
-                  <i class="fa-solid fa-pen"></i>
+                  <img src="icons3d/edit.png" class="icon3d" alt="Bearbeiten">
                 </button>
                 <button class="btn btn-glass btn-sm text-danger" data-delete-person="${escapeHtml(p.id)}" title="Person löschen">
-                  <i class="fa-solid fa-trash"></i>
+                  <img src="icons3d/trash.png" class="icon3d" alt="Löschen">
                 </button>
               </div>
             </div>
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-2 pt-2 border-top border-secondary border-opacity-25">
               <div class="d-flex gap-2 align-items-center">
-                ${photos || '<span class="small text-warning"><i class="fa-solid fa-triangle-exclamation me-1"></i>Noch kein Foto</span>'}
+                ${photos || '<span class="small text-warning">Noch kein Foto</span>'}
               </div>
               <div class="d-flex gap-2">
-                <button class="btn btn-glass btn-sm" data-capture-person="${escapeHtml(p.id)}" title="Jetzt Foto von Tapo C200 aufnehmen">
-                  <i class="fa-solid fa-camera me-1"></i>Kamera-Snap
+                <button class="btn btn-glass btn-sm" data-capture-person="${escapeHtml(p.id)}" title="Jetzt Foto von Kamera aufnehmen">
+                  <img src="icons3d/camera.png" class="icon3d me-1" alt="">Kamera-Snap
                 </button>
                 <label class="btn btn-glass btn-sm mb-0" title="Foto-Datei hochladen">
-                  <i class="fa-solid fa-upload me-1"></i>Upload
+                  <img src="icons3d/upload.png" class="icon3d me-1" alt="">Upload
                   <input type="file" accept="image/*" class="d-none" data-upload-person="${escapeHtml(p.id)}">
                 </label>
               </div>
@@ -379,7 +379,7 @@
         .map((ev) => {
           const snapHtml = ev.snapshot_url
             ? `<a href="${escapeHtml(ev.snapshot_url)}" target="_blank"><img src="${escapeHtml(ev.snapshot_url)}" class="event-snap" alt="Snapshot"></a>`
-            : `<div class="event-snap d-flex align-items-center justify-content-center bg-dark text-info"><i class="fa-solid fa-user-check"></i></div>`;
+            : `<div class="event-snap d-flex align-items-center justify-content-center bg-dark"><img src="icons3d/users.png" class="icon3d" alt=""></div>`;
 
           const camBadge = ev.camera_name
             ? `<span class="badge bg-info bg-opacity-25 text-info">${escapeHtml(ev.camera_name)}</span>`

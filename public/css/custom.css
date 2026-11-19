@@ -502,3 +502,54 @@ body {
   color: #ffffff;
   border-color: transparent;
 }
+
+/* 3D UI Icons */
+.icon3d {
+  width: 1.25em;
+  height: 1.25em;
+  vertical-align: -0.24em;
+  object-fit: contain;
+  display: inline-block;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.28));
+  transition: transform 0.22s ease;
+}
+
+.icon3d-sm {
+  width: 1.05em;
+  height: 1.05em;
+  vertical-align: -0.18em;
+}
+
+.icon3d-md {
+  width: 20px;
+  height: 20px;
+  vertical-align: -4px;
+}
+
+.icon3d-lg {
+  width: 24px;
+  height: 24px;
+  vertical-align: -5px;
+}
+
+.icon3d-xl {
+  width: 44px;
+  height: 44px;
+}
+
+.icon3d-rot-90 {
+  transform: rotate(90deg);
+}
+
+.icon3d-rot-180 {
+  transform: rotate(180deg);
+}
+
+.icon3d-rot-270 {
+  transform: rotate(-90deg);
+}
+
+#personsChevronIcon.rotated {
+  transform: rotate(180deg);
+}

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NeoGuard — AI Raumüberwachung & Begrüßung</title>
-  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="icon" type="image/png" href="icons3d/neoguard-logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -26,9 +26,9 @@
   <div id="loginSection" class="container d-none justify-content-center align-items-center vh-100 position-relative app-shell">
     <div class="glass-panel p-4 p-md-5" style="width: 100%; max-width: 420px;">
       <div class="text-center mb-4">
-        <img src="icon.svg" alt="NeoGuard" width="68" height="68" class="mb-3 brand-logo-glow">
+        <img src="icons3d/neoguard-logo.png" alt="NeoGuard" width="76" height="76" class="mb-3 brand-logo-glow">
         <div class="mb-2">
-          <span class="brand-pill"><i class="fa-solid fa-shield-halved me-1"></i>LOCAL AI SECURITY</span>
+          <span class="brand-pill"><img src="icons3d/shield.png" class="icon3d icon3d-sm me-1" alt="">LOCAL AI SECURITY</span>
         </div>
         <h3 class="fw-bold mb-1 brand-wordmark">Neo<span class="brand-accent">Guard</span></h3>
         <p class="text-secondary small mb-0">Bitte anmelden, um auf Kamera &amp; KI zuzugreifen</p>
@@ -44,7 +44,7 @@
         </div>
         <div class="alert alert-danger d-none py-2 small" id="loginAlert"></div>
         <button type="submit" class="btn btn-neo-primary w-100 py-2 mt-2">
-          <i class="fa-solid fa-right-to-bracket me-1"></i>Anmelden
+          <img src="icons3d/shield.png" class="icon3d me-1" alt="">Anmelden
         </button>
       </form>
     </div>
@@ -54,28 +54,28 @@
     <!-- Topbar -->
     <nav class="neo-topbar d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
       <div class="d-flex align-items-center gap-3">
-        <img src="icon.svg" alt="NeoGuard" width="42" height="42" class="brand-logo-glow">
+        <img src="icons3d/neoguard-logo.png" alt="NeoGuard" width="44" height="44" class="brand-logo-glow">
         <div>
           <h5 class="mb-0 fw-bold brand-wordmark">Neo<span class="brand-accent">Guard</span></h5>
           <div class="small text-secondary">
             <span>TP-Link Tapo C200</span> ·
-            <span id="engineBadge" class="text-info">100% Lokal (Offline Vision & Piper TTS)</span>
+            <span id="engineBadge" class="text-info">100% Lokal (Offline Vision)</span>
           </div>
         </div>
       </div>
 
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <span id="guardActiveBadge" class="badge rounded-pill text-bg-success px-3 py-2">
-          <i class="fa-solid fa-shield-halved me-1"></i>Überwachung Aktiv
+          <img src="icons3d/shield.png" class="icon3d icon3d-sm me-1" alt="">Überwachung Aktiv
         </span>
         <button class="btn btn-glass btn-sm px-3 py-2" id="btnOpenSettings" data-bs-toggle="modal" data-bs-target="#settingsModal">
-          <i class="fa-solid fa-sliders me-1"></i>Kamera & KI-Setup
+          <img src="icons3d/settings.png" class="icon3d me-1" alt="">Kamera & KI-Setup
         </button>
         <button class="btn btn-glass btn-sm px-2.5 py-2" id="btnThemeToggle" title="Dark/Light Mode">
-          <i class="fa-solid fa-sun" id="themeIcon"></i>
+          <img src="icons3d/sun.png" class="icon3d" id="themeIcon" alt="Theme">
         </button>
         <button class="btn btn-glass btn-sm px-2.5 py-2 text-danger" id="btnLogout" title="Abmelden">
-          <i class="fa-solid fa-right-from-bracket"></i>
+          <img src="icons3d/logout.png" class="icon3d" alt="Abmelden">
         </button>
       </div>
     </nav>
@@ -94,7 +94,7 @@
               <!-- Rendered by app.js -->
             </div>
             <button type="button" class="btn btn-glass btn-sm" id="btnToggleMultiGrid" title="Alle Kameras im Raster anzeigen">
-              <i class="fa-solid fa-table-cells-large text-info me-1"></i>Alle Kameras
+              <img src="icons3d/grid.png" class="icon3d me-1" alt="">Alle Kameras
             </button>
           </div>
 
@@ -106,21 +106,21 @@
           <div id="singleCameraView">
           <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <div>
-              <h5 class="fw-bold mb-0"><i class="fa-solid fa-video text-info me-2"></i><span id="activeCameraTitle">Kamera 1</span> Live-Ansicht</h5>
+              <h5 class="fw-bold mb-0"><img src="icons3d/camera.png" class="icon3d icon3d-lg me-2" alt=""><span id="activeCameraTitle">Kamera 1</span> Live-Ansicht</h5>
               <small class="text-secondary" id="cameraIpSubtitle">IP: 192.168.178.50 · RTSP Port 554 / ONVIF 2020</small>
             </div>
             <div class="d-flex gap-2 flex-wrap">
               <button class="btn btn-glass btn-sm" id="btnAiOverlayToggle" title="KI-Erkennungs-Raster auf dem Live-Bild ein/ausschalten">
-                <i class="fa-solid fa-border-all me-1 text-info"></i>KI-Raster: <span id="aiOverlayState">AN</span>
+                <img src="icons3d/brain.png" class="icon3d me-1" alt="">KI-Raster: <span id="aiOverlayState">AN</span>
               </button>
               <button class="btn btn-glass btn-sm" id="btnAutoTrackToggle" title="KI-Personen-Verfolgung ein/ausschalten">
-                <i class="fa-solid fa-crosshairs me-1 text-info"></i>Tracking: <span id="autoTrackState">AN</span>
+                <img src="icons3d/preset.png" class="icon3d me-1" alt="">Tracking: <span id="autoTrackState">AN</span>
               </button>
-              <button class="btn btn-neo-primary btn-sm px-3" id="btnScanNow" title="Jetzt Frame analysieren & begrüßen">
-                <i class="fa-solid fa-user-check me-1"></i>Jetzt Erkennen
+              <button class="btn btn-neo-primary btn-sm px-3" id="btnScanNow" title="Jetzt Frame analysieren">
+                <img src="icons3d/users.png" class="icon3d me-1" alt="">Jetzt Erkennen
               </button>
               <button class="btn btn-glass btn-sm" id="btnPrivacyToggle" title="Linse verdecken (Privatsphäre)">
-                <i class="fa-solid fa-eye-slash me-1"></i>Privacy
+                <img src="icons3d/privacy.png" class="icon3d me-1" alt="">Privacy
               </button>
             </div>
           </div>
@@ -135,7 +135,7 @@
 
           <!-- Digital Zoom Bar -->
           <div class="d-flex align-items-center gap-2 mb-3 px-2 py-1 rounded-3" style="background: var(--surface-subtle); border: 1px solid var(--glass-border);">
-            <span class="small text-secondary text-nowrap"><i class="fa-solid fa-magnifying-glass-plus text-info me-1"></i>Digital-Zoom</span>
+            <span class="small text-secondary text-nowrap"><img src="icons3d/zoom.png" class="icon3d me-1" alt="">Digital-Zoom</span>
             <button type="button" class="btn btn-glass btn-sm px-2 py-0" id="btnZoomMinus" title="Herauszoomen">
               <i class="fa-solid fa-minus"></i>
             </button>
@@ -153,38 +153,38 @@
               <div class="text-center small text-secondary mb-2 fw-semibold">PTZ Schwenken / Neigen (360° / 114°)</div>
               <div class="ptz-dpad">
                 <div></div>
-                <button class="ptz-btn" data-ptz="up" title="Nach oben"><i class="fa-solid fa-chevron-up"></i></button>
+                <button class="ptz-btn" data-ptz="up" title="Nach oben"><img src="icons3d/arrow.png" class="icon3d icon3d-md" alt="Hoch"></button>
                 <div></div>
-                <button class="ptz-btn" data-ptz="left" title="Nach links"><i class="fa-solid fa-chevron-left"></i></button>
-                <button class="ptz-btn" id="btnRefreshSnap" title="Bild aktualisieren"><i class="fa-solid fa-rotate"></i></button>
-                <button class="ptz-btn" data-ptz="right" title="Nach rechts"><i class="fa-solid fa-chevron-right"></i></button>
+                <button class="ptz-btn" data-ptz="left" title="Nach links"><img src="icons3d/arrow.png" class="icon3d icon3d-md icon3d-rot-270" alt="Links"></button>
+                <button class="ptz-btn" id="btnRefreshSnap" title="Bild aktualisieren"><img src="icons3d/history.png" class="icon3d icon3d-md" alt="Refresh"></button>
+                <button class="ptz-btn" data-ptz="right" title="Nach rechts"><img src="icons3d/arrow.png" class="icon3d icon3d-md icon3d-rot-90" alt="Rechts"></button>
                 <div></div>
-                <button class="ptz-btn" data-ptz="down" title="Nach unten"><i class="fa-solid fa-chevron-down"></i></button>
+                <button class="ptz-btn" data-ptz="down" title="Nach unten"><img src="icons3d/arrow.png" class="icon3d icon3d-md icon3d-rot-180" alt="Runter"></button>
                 <div></div>
               </div>
             </div>
             <div class="col-sm-7">
               <div class="p-3 rounded-4" style="background: var(--surface-subtle); border: 1px solid var(--glass-border);">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                  <span class="small fw-semibold"><i class="fa-solid fa-compass text-info me-1"></i>Schnell-Positionen (Presets)</span>
-                  <span class="text-secondary" style="font-size: 0.72rem;"><i class="fa-solid fa-floppy-disk me-1"></i>= Aktuelle Position speichern</span>
+                  <span class="small fw-semibold"><img src="icons3d/preset.png" class="icon3d me-1" alt="">Schnell-Positionen (Presets)</span>
+                  <span class="text-secondary" style="font-size: 0.72rem;"><img src="icons3d/save.png" class="icon3d icon3d-sm me-1" alt="">= Position speichern</span>
                 </div>
                 <div class="d-flex flex-column gap-2 mb-3">
                   <div class="btn-group">
-                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="1"><i class="fa-solid fa-location-crosshairs text-info me-2"></i>1 · <span id="presetLabel1">Tür / Eingang</span> anfahren</button>
-                    <button class="btn btn-glass btn-sm px-3" data-save-preset="1" title="Aktuelle Kameraposition auf Platz 1 speichern"><i class="fa-solid fa-floppy-disk text-success"></i></button>
+                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="1"><img src="icons3d/preset.png" class="icon3d icon3d-sm me-2" alt="">1 · <span id="presetLabel1">Tür / Eingang</span> anfahren</button>
+                    <button class="btn btn-glass btn-sm px-3" data-save-preset="1" title="Aktuelle Kameraposition auf Platz 1 speichern"><img src="icons3d/save.png" class="icon3d" alt="Speichern"></button>
                   </div>
                   <div class="btn-group">
-                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="2"><i class="fa-solid fa-location-crosshairs text-info me-2"></i>2 · <span id="presetLabel2">Raum-Mitte</span> anfahren</button>
-                    <button class="btn btn-glass btn-sm px-3" data-save-preset="2" title="Aktuelle Kameraposition auf Platz 2 speichern"><i class="fa-solid fa-floppy-disk text-success"></i></button>
+                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="2"><img src="icons3d/preset.png" class="icon3d icon3d-sm me-2" alt="">2 · <span id="presetLabel2">Raum-Mitte</span> anfahren</button>
+                    <button class="btn btn-glass btn-sm px-3" data-save-preset="2" title="Aktuelle Kameraposition auf Platz 2 speichern"><img src="icons3d/save.png" class="icon3d" alt="Speichern"></button>
                   </div>
                   <div class="btn-group">
-                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="3"><i class="fa-solid fa-location-crosshairs text-info me-2"></i>3 · <span id="presetLabel3">Schreibtisch</span> anfahren</button>
-                    <button class="btn btn-glass btn-sm px-3" data-save-preset="3" title="Aktuelle Kameraposition auf Platz 3 speichern"><i class="fa-solid fa-floppy-disk text-success"></i></button>
+                    <button class="btn btn-glass btn-sm text-start flex-grow-1" data-preset="3"><img src="icons3d/preset.png" class="icon3d icon3d-sm me-2" alt="">3 · <span id="presetLabel3">Schreibtisch</span> anfahren</button>
+                    <button class="btn btn-glass btn-sm px-3" data-save-preset="3" title="Aktuelle Kameraposition auf Platz 3 speichern"><img src="icons3d/save.png" class="icon3d" alt="Speichern"></button>
                   </div>
                 </div>
                 <div class="small text-secondary mb-0">
-                  <i class="fa-solid fa-circle-info me-1"></i>Kamera per Steuerkreuz ausrichten → rechts auf <i class="fa-solid fa-floppy-disk text-success"></i> klicken, um die Position fest in der Tapo C200 zu speichern.
+                  Kamera per Steuerkreuz ausrichten → rechts auf <img src="icons3d/save.png" class="icon3d icon3d-sm" alt=""> klicken, um die Position fest in der Tapo C200 zu speichern.
                 </div>
               </div>
             </div>
@@ -200,17 +200,17 @@
           <div class="d-flex justify-content-between align-items-center mb-2">
             <div>
               <h5 class="fw-bold mb-0">
-                <i class="fa-solid fa-users-viewfinder text-info me-2"></i>Bekannte Personen
+                <img src="icons3d/users.png" class="icon3d icon3d-lg me-2" alt="">Bekannte Personen
                 <span class="badge bg-info bg-opacity-25 text-info ms-1 align-middle" id="personsCountBadge" style="font-size: 0.72rem;">0</span>
               </h5>
-              <small class="text-secondary">Lokale Gesichts-Embeddings &amp; persönliche Begrüßung</small>
+              <small class="text-secondary">Lokale Gesichts-Embeddings (Erkannte Personen = OK)</small>
             </div>
             <div class="d-flex align-items-center gap-2">
               <button class="btn btn-neo-primary btn-sm px-3" data-bs-toggle="modal" data-bs-target="#addPersonModal">
-                <i class="fa-solid fa-user-plus me-1"></i>Person +
+                <img src="icons3d/users.png" class="icon3d icon3d-sm me-1" alt="">Person +
               </button>
               <button type="button" class="btn btn-glass btn-sm px-2" id="btnTogglePersons" title="Personenliste auf-/zuklappen" aria-expanded="false">
-                <i class="fa-solid fa-chevron-down" id="personsChevronIcon"></i>
+                <img src="icons3d/arrow.png" class="icon3d icon3d-rot-180" id="personsChevronIcon" alt="Aufklappen">
               </button>
             </div>
           </div>
@@ -232,11 +232,11 @@
         <div class="glass-panel p-4">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
-              <h5 class="fw-bold mb-0"><i class="fa-solid fa-clock-rotate-left text-warning me-2"></i>Erkennungs- & Begrüßungs-Log</h5>
-              <small class="text-secondary">Letzte Raum-Ereignisse mit Kamera-Snapshot</small>
+              <h5 class="fw-bold mb-0"><img src="icons3d/history.png" class="icon3d icon3d-lg me-2" alt="">Unbekannte Personen (48h Log)</h5>
+              <small class="text-secondary">Automatische Snapshots der letzten 48 Stunden</small>
             </div>
             <button class="btn btn-glass btn-sm" id="btnClearEvents" title="Historie leeren">
-              <i class="fa-solid fa-trash-can"></i>
+              <img src="icons3d/trash.png" class="icon3d" alt="Leeren">
             </button>
           </div>
 
@@ -253,7 +253,7 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content glass-panel border-0 p-2" style="background: var(--glass-modal-bg);">
         <div class="modal-header border-0">
-          <h5 class="modal-title fw-bold"><i class="fa-solid fa-user-plus text-info me-2"></i>Neue Person anlegen</h5>
+          <h5 class="modal-title fw-bold"><img src="icons3d/users.png" class="icon3d icon3d-lg me-2" alt="">Neue Person anlegen</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <form id="addPersonForm">
@@ -287,7 +287,7 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content glass-panel border-0 p-2" style="background: var(--glass-modal-bg);">
         <div class="modal-header border-0">
-          <h5 class="modal-title fw-bold"><i class="fa-solid fa-user-pen text-info me-2"></i>Person bearbeiten</h5>
+          <h5 class="modal-title fw-bold"><img src="icons3d/edit.png" class="icon3d icon3d-lg me-2" alt="">Person bearbeiten</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <form id="editPersonForm">
@@ -315,10 +315,10 @@
                 <label class="form-label small fw-semibold mb-0">Gespeicherte Referenzfotos</label>
                 <div class="d-flex gap-2">
                   <button type="button" class="btn btn-glass btn-sm" id="btnEditCapturePhoto">
-                    <i class="fa-solid fa-camera me-1"></i>Kamera-Snap
+                    <img src="icons3d/camera.png" class="icon3d me-1" alt="">Kamera-Snap
                   </button>
                   <label class="btn btn-glass btn-sm mb-0">
-                    <i class="fa-solid fa-upload me-1"></i>Upload
+                    <img src="icons3d/upload.png" class="icon3d me-1" alt="">Upload
                     <input type="file" accept="image/*" class="d-none" id="inputEditUploadPhoto">
                   </label>
                 </div>
@@ -340,7 +340,7 @@
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content glass-panel border-0 p-2" style="background: var(--glass-modal-bg);">
         <div class="modal-header border-0">
-          <h5 class="modal-title fw-bold"><i class="fa-solid fa-crop-simple text-info me-2"></i>Foto zuschneiden</h5>
+          <h5 class="modal-title fw-bold"><img src="icons3d/zoom.png" class="icon3d icon3d-lg me-2" alt="">Foto zuschneiden</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body text-center">
@@ -375,7 +375,7 @@
     <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content glass-panel border-0 p-2" style="background: var(--glass-modal-bg);">
         <div class="modal-header border-0">
-          <h5 class="modal-title fw-bold"><i class="fa-solid fa-sliders text-info me-2"></i>Tapo C200 & KI-Raumüberwachung konfigurieren</h5>
+          <h5 class="modal-title fw-bold"><img src="icons3d/settings.png" class="icon3d icon3d-lg me-2" alt="">NeoGuard Konfiguration</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <form id="settingsForm">
@@ -384,17 +384,17 @@
             <ul class="nav nav-pills neo-settings-tabs gap-2 mb-4" id="settingsTabNav" role="tablist">
               <li class="nav-item" role="presentation">
                 <button class="nav-link active" id="tabCamerasBtn" data-bs-toggle="pill" data-bs-target="#tabCameras" type="button" role="tab">
-                  <i class="fa-solid fa-video me-1"></i>Kameras
+                  <img src="icons3d/camera.png" class="icon3d me-1" alt="">Kameras
                 </button>
               </li>
               <li class="nav-item" role="presentation">
                 <button class="nav-link" id="tabGuardBtn" data-bs-toggle="pill" data-bs-target="#tabGuard" type="button" role="tab">
-                  <i class="fa-solid fa-brain me-1"></i>KI &amp; Erkennung
+                  <img src="icons3d/brain.png" class="icon3d me-1" alt="">KI &amp; Erkennung
                 </button>
               </li>
               <li class="nav-item" role="presentation">
                 <button class="nav-link" id="tabLoginBtn" data-bs-toggle="pill" data-bs-target="#tabLogin" type="button" role="tab">
-                  <i class="fa-solid fa-shield-halved me-1"></i>Login
+                  <img src="icons3d/shield.png" class="icon3d me-1" alt="">Login
                 </button>
               </li>
             </ul>
@@ -412,7 +412,7 @@
                       <i class="fa-solid fa-plus me-1"></i>Kamera +
                     </button>
                     <button type="button" class="btn btn-glass btn-sm text-danger" id="btnDeleteCamera" title="Gewählte Kamera entfernen">
-                      <i class="fa-solid fa-trash"></i>
+                      <img src="icons3d/trash.png" class="icon3d" alt="Löschen">
                     </button>
                   </div>
                 </div>
@@ -500,15 +500,15 @@
 
                   <div class="col-12 pt-2 border-top border-secondary border-opacity-25">
                     <div class="d-flex flex-wrap align-items-center gap-2">
-                      <span class="small fw-semibold me-2"><i class="fa-solid fa-microchip text-info me-1"></i>Kamera-Hardware (TPAP):</span>
+                      <span class="small fw-semibold me-2"><img src="icons3d/brain.png" class="icon3d me-1" alt="">Kamera-Hardware (TPAP):</span>
                       <button type="button" class="btn btn-glass btn-sm" id="btnHardwareSiren" title="Kamera-Sirene kurz auslösen">
-                        <i class="fa-solid fa-bell text-danger me-1"></i>Sirene
+                        <img src="icons3d/siren.png" class="icon3d me-1" alt="">Sirene
                       </button>
                       <button type="button" class="btn btn-glass btn-sm" id="btnHardwareLed" title="Status-LED umschalten">
-                        <i class="fa-solid fa-lightbulb text-warning me-1"></i>LED: <span id="hwLedState">AN</span>
+                        <img src="icons3d/led.png" class="icon3d me-1" alt="">LED: <span id="hwLedState">AN</span>
                       </button>
                       <button type="button" class="btn btn-glass btn-sm" id="btnHardwareNight" title="Nachtsicht umschalten (Auto / Ein / Aus)">
-                        <i class="fa-solid fa-moon text-info me-1"></i>IR: <span id="hwNightState">Auto</span>
+                        <img src="icons3d/night.png" class="icon3d me-1" alt="">IR: <span id="hwNightState">Auto</span>
                       </button>
                     </div>
                   </div>
