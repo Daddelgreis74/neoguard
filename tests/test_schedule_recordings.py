@@ -72,9 +72,11 @@ def test_schedule_api_roundtrip(client: TestClient):
 
 def test_recordings_api_and_retention(client: TestClient):
     rec_dir = store.recordings_dir / "2026-11-20" / "cam_1"
+    rec_dir_old = store.recordings_dir / "2026-11-01" / "cam_1"
     rec_dir.mkdir(parents=True, exist_ok=True)
+    rec_dir_old.mkdir(parents=True, exist_ok=True)
     mp4_new = rec_dir / "clip_new.mp4"
-    mp4_old = rec_dir / "clip_old.mp4"
+    mp4_old = rec_dir_old / "clip_old.mp4"
     mp4_new.write_bytes(b"ftypmp42" + b"0" * 5000)
     mp4_old.write_bytes(b"ftypmp42" + b"1" * 5000)
 
