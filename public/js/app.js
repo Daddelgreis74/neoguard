@@ -1261,6 +1261,243 @@
     });
   });
 
+  // -------------------- Recordings & 7x24h Weekly Scheduler --------------------
+  const SCHED_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+  const SCHED_DAY_LABELS = {
+    de: { mon: "Mo", tue: "Di", wed: "Mi", thu: "Do", fri: "Fr", sat: "Sa", sun: "So" },
+    en: { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" },
+    fr: { mon: "Lun", tue: "Mar", wed: "Mer", thu: "Jeu", fri: "Ven", sat: "Sam", sun: "Dim" },
+    es: { mon: "Lun", tue: "Mar", wed: "Mié", thu: "Jue", fri: "Vie", sat: "Sáb", sun: "Dom" },
+  };
+  const SCHED_COLORS = {
+    off: "rgba(100,116,139,0.28)",
+    events: "rgba(56,189,248,0.75)",
+    continuous: "rgba(245,158,11,0.85)",
+  };
+  let weeklyScheduleState = {};
+  let activeBrushMode = "events";
+  let isPaintingSchedule = false;
+
+  const renderScheduleGrid = () => {
+    const hdr = document.getElementById("weeklyScheduleHeader");
+    const body = document.getElementById("weeklyScheduleBody");
+    if (!hdr || !body) return;
+    const lang = window.neoI18n?.getLang?.() || "de";
+    const labels = SCHED_DAY_LABELS[lang] || SCHED_DAY_LABELS.de;
+
+    hdr.innerHTML = `<th style="width:42px;"></th>` + Array.from({ length: 24 }, (_, h) =>
+      `<th class="text-center p-0" style="min-width:22px;">${String(h).padStart(2, "0")}</th>`
+    ).join("");
+
+    body.innerHTML = SCHED_DAYS.map((day) => {
+      const slots = weeklyScheduleState[day] || Array(24).fill("off");
+      const cells = slots.map((mode, h) =>
+        `<td class="p-1"><div class="sched-cell" data-day="${day}" data-hour="${h}" title="${labels[day]} ${String(h).padStart(2, "0")}:00 (${mode})" style="height:22px;border-radius:4px;cursor:pointer;background:${SCHED_COLORS[mode] || SCHED_COLORS.off};border:1px solid rgba(255,255,255,0.12);"></div></td>`
+      ).join("");
+      return `<tr><td class="small fw-semibold text-secondary">${labels[day]}</td>${cells}</tr>`;
+    }).join("");
+  };
+
+  const paintCell = (el) => {
+    const day = el.dataset.day;
+    const hour = Number(el.dataset.hour);
+    if (!day || Number.isNaN(hour)) return;
+    if (!Array.isArray(weeklyScheduleState[day])) weeklyScheduleState[day] = Array(24).fill("off");
+    weeklyScheduleState[day][hour] = activeBrushMode;
+    el.style.background = SCHED_COLORS[activeBrushMode];
+    el.title = `${day} ${String(hour).padStart(2, "0")}:00 (${activeBrushMode})`;
+  };
+
+  const loadScheduleData = async () => {
+    try {
+      const res = await fetch("/api/schedule");
+      if (!res.ok) return;
+      const data = await res.json();
+      weeklyScheduleState = data.weekly_schedule || {};
+      const rec = data.recording || {};
+      document.getElementById("recEnabledInput").checked = rec.enabled !== false;
+      document.getElementById("recTriggerOnInput").value = rec.trigger_on || "all";
+      document.getElementById("recPreRollInput").value = rec.pre_roll_sec ?? 5;
+      document.getElementById("recPostRollInput").value = rec.post_roll_sec ?? 20;
+      document.getElementById("recRetentionDaysInput").value = rec.retention_days ?? 14;
+      document.getElementById("recMaxGbInput").value = rec.max_storage_gb ?? 100;
+      const badge = document.getElementById("recStorageBadge");
+      if (badge && data.storage) {
+        badge.textContent = `${data.storage.count} Clips · ${data.storage.total_mb} MB`;
+      }
+      renderScheduleGrid();
+    } catch {}
+  };
+
+  const playRecording = (rec) => {
+    const player = document.getElementById("recVideoPlayer");
+    const placeholder = document.getElementById("recPlayerPlaceholder");
+    const nowPlaying = document.getElementById("recNowPlaying");
+    if (!player) return;
+    player.src = `/api/recordings/${encodeURIComponent(rec.id)}/video`;
+    player.style.display = "block";
+    if (placeholder) placeholder.style.display = "none";
+    if (nowPlaying) {
+      const timeStr = `${String(rec.local_hour ?? 0).padStart(2, "0")}:${String(rec.local_minute ?? 0).padStart(2, "0")}`;
+      nowPlaying.textContent = `${rec.camera_name || rec.camera_id} · ${timeStr} · ${rec.person_name || rec.event_type} (${rec.duration_sec}s)`;
+    }
+    player.play().catch(() => {});
+  };
+
+  const loadRecordings = async () => {
+    const dateInput = document.getElementById("recDateInput");
+    const camFilter = document.getElementById("recCameraFilter");
+    if (dateInput && !dateInput.value) {
+      const now = new Date();
+      dateInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    }
+    if (camFilter && camFilter.options.length <= 1) {
+      for (const cam of getCameras()) {
+        const opt = document.createElement("option");
+        opt.value = cam.id;
+        opt.textContent = cam.name || cam.id;
+        camFilter.appendChild(opt);
+      }
+    }
+    const params = new URLSearchParams();
+    if (dateInput?.value) params.set("date", dateInput.value);
+    if (camFilter?.value) params.set("camera_id", camFilter.value);
+
+    try {
+      const res = await fetch(`/api/recordings?${params.toString()}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const items = data.recordings || [];
+      const badge = document.getElementById("recStorageBadge");
+      if (badge && data.storage) {
+        badge.textContent = `${data.storage.count} Clips · ${data.storage.total_mb} MB`;
+      }
+      const summary = document.getElementById("recDaySummary");
+      if (summary) summary.textContent = `${items.length} Clips`;
+
+      const track = document.getElementById("recTimelineTrack");
+      if (track) {
+        track.innerHTML = "";
+        for (const rec of items) {
+          const mins = (Number(rec.local_hour || 0) * 60) + Number(rec.local_minute || 0);
+          const leftPct = Math.max(0, Math.min(99, (mins / 1440) * 100));
+          const widthPct = Math.max(0.7, Math.min(100 - leftPct, (Number(rec.duration_sec || 20) / 86400) * 100));
+          const color = rec.event_type === "unknown_person" ? "#ef4444" : (rec.mode === "continuous" ? "#38bdf8" : "#22c55e");
+          const marker = document.createElement("div");
+          marker.style.cssText = `position:absolute;top:4px;bottom:4px;left:${leftPct}%;width:${widthPct}%;min-width:6px;background:${color};border-radius:4px;cursor:pointer;opacity:0.9;`;
+          marker.title = `${String(rec.local_hour ?? 0).padStart(2, "0")}:${String(rec.local_minute ?? 0).padStart(2, "0")} - ${rec.person_name || rec.event_type}`;
+          marker.addEventListener("click", () => playRecording(rec));
+          track.appendChild(marker);
+        }
+      }
+
+      const listEl = document.getElementById("recClipList");
+      if (listEl) {
+        if (!items.length) {
+          listEl.innerHTML = `<div class="text-secondary small p-3 text-center">Keine Aufnahmen für dieses Datum.</div>`;
+        } else {
+          listEl.innerHTML = "";
+          for (const rec of items) {
+            const card = document.createElement("div");
+            card.className = "p-2 rounded-3 d-flex align-items-center justify-content-between gap-2";
+            card.style.cssText = "background:rgba(15,23,42,0.45);border:1px solid rgba(148,163,184,0.18);cursor:pointer;";
+            const timeStr = `${String(rec.local_hour ?? 0).padStart(2, "0")}:${String(rec.local_minute ?? 0).padStart(2, "0")}`;
+            const mb = ((rec.size_bytes || 0) / (1024 * 1024)).toFixed(1);
+            const badgeCls = rec.event_type === "unknown_person" ? "text-bg-danger" : (rec.mode === "continuous" ? "text-bg-info" : "text-bg-success");
+            card.innerHTML = `
+              <div class="overflow-hidden">
+                <div class="small fw-semibold text-truncate"><span class="badge ${badgeCls} me-1">${timeStr}</span>${escapeHtml(rec.person_name || rec.event_type)}</div>
+                <div class="text-secondary" style="font-size:0.74rem;">${escapeHtml(rec.camera_name || rec.camera_id)} · ${rec.duration_sec}s · ${mb} MB</div>
+              </div>
+              <div class="d-flex gap-1 flex-shrink-0">
+                <a class="btn btn-glass btn-sm px-2 py-1" href="/api/recordings/${encodeURIComponent(rec.id)}/video" download title="Download">⬇</a>
+                <button type="button" class="btn btn-glass btn-sm px-2 py-1 text-danger btn-del-rec" title="Delete">✕</button>
+              </div>
+            `;
+            card.addEventListener("click", (e) => {
+              if (e.target.closest(".btn-del-rec") || e.target.closest("a")) return;
+              playRecording(rec);
+            });
+            card.querySelector(".btn-del-rec")?.addEventListener("click", async (e) => {
+              e.stopPropagation();
+              await fetch(`/api/recordings/${encodeURIComponent(rec.id)}`, { method: "DELETE" });
+              loadRecordings();
+            });
+            listEl.appendChild(card);
+          }
+        }
+      }
+    } catch {}
+  };
+
+  document.getElementById("recordingsModal")?.addEventListener("show.bs.modal", () => {
+    loadRecordings();
+    loadScheduleData();
+  });
+  document.getElementById("btnRefreshRecordings")?.addEventListener("click", loadRecordings);
+  document.getElementById("recDateInput")?.addEventListener("change", loadRecordings);
+  document.getElementById("recCameraFilter")?.addEventListener("change", loadRecordings);
+
+  document.querySelectorAll(".sched-brush-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".sched-brush-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      activeBrushMode = btn.dataset.mode || "events";
+    });
+  });
+
+  document.querySelectorAll(".sched-preset-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const preset = btn.dataset.preset;
+      for (const d of SCHED_DAYS) {
+        if (preset === "default") weeklyScheduleState[d] = Array.from({ length: 24 }, (_, h) => (h >= 6 && h < 23 ? "events" : "off"));
+        else if (preset === "night") weeklyScheduleState[d] = Array.from({ length: 24 }, (_, h) => (h >= 22 || h < 6 ? "events" : "off"));
+        else if (preset === "workdays") weeklyScheduleState[d] = Array.from({ length: 24 }, (_, h) => (!["sat", "sun"].includes(d) && h >= 8 && h < 17 ? "events" : "off"));
+        else if (preset === "all_events") weeklyScheduleState[d] = Array(24).fill("events");
+      }
+      renderScheduleGrid();
+    });
+  });
+
+  const schedBody = document.getElementById("weeklyScheduleBody");
+  schedBody?.addEventListener("mousedown", (e) => {
+    const cell = e.target.closest(".sched-cell");
+    if (!cell) return;
+    isPaintingSchedule = true;
+    paintCell(cell);
+  });
+  schedBody?.addEventListener("mouseover", (e) => {
+    if (!isPaintingSchedule) return;
+    const cell = e.target.closest(".sched-cell");
+    if (cell) paintCell(cell);
+  });
+  window.addEventListener("mouseup", () => { isPaintingSchedule = false; });
+
+  document.getElementById("btnSaveSchedule")?.addEventListener("click", async () => {
+    const payload = {
+      weekly_schedule: weeklyScheduleState,
+      recording: {
+        enabled: document.getElementById("recEnabledInput")?.checked !== false,
+        trigger_on: document.getElementById("recTriggerOnInput")?.value || "all",
+        pre_roll_sec: Number(document.getElementById("recPreRollInput")?.value || 5),
+        post_roll_sec: Number(document.getElementById("recPostRollInput")?.value || 20),
+        retention_days: Number(document.getElementById("recRetentionDaysInput")?.value || 14),
+        max_storage_gb: Number(document.getElementById("recMaxGbInput")?.value || 100),
+      },
+    };
+    const res = await fetch("/api/schedule", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      showStatus("Zeitplan & Videoaufzeichnung gespeichert.", "success");
+      loadScheduleData();
+    } else {
+      showStatus("Fehler beim Speichern des Zeitplans.", "danger");
+    }
+  });
+
   const bootApp = async () => {
     initTheme();
     window.neoI18n?.apply();

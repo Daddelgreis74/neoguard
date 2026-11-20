@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 from app.camera_service import TapoCameraService
-from app.config import ConfigStore
+from app.config import ConfigStore, get_schedule_mode
 from app.face_service import LocalFaceService
 from app.tts_service import LocalTTSService
 
@@ -66,11 +66,13 @@ class RoomGuardWorker:
         camera_service: Any,
         face_service: LocalFaceService,
         tts_service: LocalTTSService,
+        recording_service: Any = None,
     ) -> None:
         self.store = store
         self.camera = camera_service
         self.face = face_service
         self.tts = tts_service
+        self.recording = recording_service
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._last_unknown_greet_ts: float = 0.0
@@ -251,6 +253,12 @@ class RoomGuardWorker:
                 if can_greet:
                     # Bekannte Personen sind OK: nur last_seen aktualisieren, kein Snapshot/Event speichern
                     self.store.update_person(p_id, {"last_seen": now_iso})
+                    if self.recording is not None and get_schedule_mode(guard_cfg) == "events":
+                        rec_cfg = guard_cfg.get("recording") or {}
+                        if rec_cfg.get("enabled", True) and rec_cfg.get("trigger_on", "all") == "all":
+                            self.recording.trigger_event_clip(
+                                camera_cfg, event_type="known_person", person_name=p_name, rec_cfg=rec_cfg
+                            )
                     if guard_cfg.get("auto_privacy_after_greeting"):
                         cam_svc.set_privacy_mode(camera_cfg, True)
                 else:
@@ -323,6 +331,16 @@ class RoomGuardWorker:
                         camera_id=cam_id,
                         camera_name=cam_name,
                     )
+                    if self.recording is not None and get_schedule_mode(guard_cfg) == "events":
+                        rec_cfg = guard_cfg.get("recording") or {}
+                        if rec_cfg.get("enabled", True):
+                            self.recording.trigger_event_clip(
+                                camera_cfg,
+                                event_type="unknown_person",
+                                person_name="Unbekannt",
+                                snapshot_filename=snap_name,
+                                rec_cfg=rec_cfg,
+                            )
 
                 overlay_faces.append(
                     {
@@ -355,13 +373,18 @@ class RoomGuardWorker:
             try:
                 raw_cfg = self.store.get_raw_config()
                 guard_cfg = raw_cfg["guard"]
-                cameras = [c for c in raw_cfg.get("cameras", []) if c.get("enabled", True)]
+                all_cameras = raw_cfg.get("cameras", [])
+                cameras = [c for c in all_cameras if c.get("enabled", True)]
                 interval = max(1.0, float(guard_cfg.get("detection_interval_sec", 2.0)))
+                mode = get_schedule_mode(guard_cfg)
+                rec_cfg = guard_cfg.get("recording") or {}
 
-                if guard_cfg.get("enabled", True) and is_within_active_hours(
-                    guard_cfg.get("active_hours_start", "06:00"),
-                    guard_cfg.get("active_hours_end", "23:00"),
-                ):
+                if self.recording is not None:
+                    for c in all_cameras:
+                        target = mode if c.get("enabled", True) else "off"
+                        await asyncio.to_thread(self.recording.sync_camera_mode, c, target, rec_cfg)
+
+                if mode != "off":
                     if any(c.get("auto_tracking", True) for c in cameras):
                         interval = min(interval, 0.12)
 
@@ -371,7 +394,6 @@ class RoomGuardWorker:
                         frame = await asyncio.to_thread(
                             cam_svc.capture_frame,
                             cam_cfg,
-                            cam_cfg.get("stream_quality", "stream1"),
                         )
                         if frame is not None:
                             await asyncio.to_thread(

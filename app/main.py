@@ -21,6 +21,7 @@ from app.camera_service import CameraManager, TapoCameraService
 from app.config import ConfigStore
 from app.face_service import LocalFaceService
 from app.guard_worker import RoomGuardWorker, format_greeting_template
+from app.recording_service import RecordingService
 from app.tts_service import PIPER_VOICES, LocalTTSService
 
 logging.basicConfig(
@@ -37,11 +38,13 @@ camera_manager = CameraManager(data_dir=store.data_dir)
 camera_service = camera_manager.get_service("cam_1")
 face_service = LocalFaceService(models_dir=store.models_dir)
 tts_service = LocalTTSService(models_dir=store.models_dir)
+recording_service = RecordingService(store=store)
 guard_worker = RoomGuardWorker(
     store=store,
     camera_service=camera_manager,
     face_service=face_service,
     tts_service=tts_service,
+    recording_service=recording_service,
 )
 
 
@@ -57,6 +60,7 @@ async def lifespan(app: FastAPI):
         guard_worker.start()
     yield
     await guard_worker.stop()
+    recording_service.stop_all()
 
 
 app = FastAPI(
@@ -614,6 +618,59 @@ def get_event_snapshot(filename: str) -> FileResponse:
     if not target.exists():
         raise HTTPException(status_code=404, detail="Snapshot nicht gefunden.")
     return FileResponse(target, media_type="image/jpeg")
+
+
+# -------------------- Weekly Schedule & Recordings --------------------
+
+
+class ScheduleUpdatePayload(BaseModel):
+    weekly_schedule: Optional[Dict[str, Any]] = None
+    recording: Optional[Dict[str, Any]] = None
+
+
+@app.get("/api/schedule")
+def get_schedule() -> Dict[str, Any]:
+    data = store.get_schedule()
+    data["storage"] = store.get_recording_storage_stats()
+    return data
+
+
+@app.put("/api/schedule")
+def update_schedule(payload: ScheduleUpdatePayload) -> Dict[str, Any]:
+    data = store.update_schedule(
+        weekly_schedule=payload.weekly_schedule,
+        recording=payload.recording,
+    )
+    data["storage"] = store.get_recording_storage_stats()
+    return {"ok": True, **data}
+
+
+@app.get("/api/recordings")
+def list_recordings(date: Optional[str] = None, camera_id: Optional[str] = None) -> Dict[str, Any]:
+    items = store.list_recordings(date_str=date, camera_id=camera_id)
+    return {
+        "recordings": items,
+        "storage": store.get_recording_storage_stats(),
+    }
+
+
+@app.get("/api/recordings/{rec_id}/video")
+def stream_recording_video(rec_id: str) -> FileResponse:
+    rec = store.get_recording(rec_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Aufnahme nicht gefunden.")
+    rel_path = rec.get("rel_path") or ""
+    target = (store.recordings_dir / rel_path).resolve()
+    if not str(target).startswith(str(store.recordings_dir.resolve())) or not target.exists():
+        raise HTTPException(status_code=404, detail="Videodatei nicht gefunden.")
+    return FileResponse(target, media_type="video/mp4")
+
+
+@app.delete("/api/recordings/{rec_id}")
+def delete_recording(rec_id: str) -> Dict[str, Any]:
+    if not store.delete_recording(rec_id):
+        raise HTTPException(status_code=404, detail="Aufnahme nicht gefunden.")
+    return {"ok": True, "storage": store.get_recording_storage_stats()}
 
 
 # -------------------- Static Web-UI --------------------

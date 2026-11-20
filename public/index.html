@@ -76,6 +76,9 @@
         <span id="guardActiveBadge" class="badge rounded-pill text-bg-success px-3 py-2">
           <img src="icons3d/shield.png" class="icon3d icon3d-sm me-1" alt=""><span data-i18n="guard_active">Überwachung Aktiv</span>
         </span>
+        <button class="btn btn-glass btn-sm px-3 py-2" id="btnOpenRecordings" data-bs-toggle="modal" data-bs-target="#recordingsModal">
+          <img src="icons3d/camera.png" class="icon3d me-1" alt=""><span data-i18n="btn_recordings">Aufnahmen & Planer</span>
+        </button>
         <button class="btn btn-glass btn-sm px-3 py-2" id="btnOpenSettings" data-bs-toggle="modal" data-bs-target="#settingsModal">
           <img src="icons3d/settings.png" class="icon3d me-1" alt=""><span data-i18n="btn_setup">Einstellung</span>
         </button>
@@ -614,6 +617,138 @@
             <button type="submit" class="btn btn-neo-primary px-4" data-i18n="btn_save_apply">Speichern & Übernehmen</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Recordings & 7x24h Weekly Scheduler -->
+  <div class="modal fade" id="recordingsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content glass-panel border-0 p-2" style="background: var(--glass-modal-bg);">
+        <div class="modal-header border-0 pb-2">
+          <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
+            <img src="icons3d/camera.png" class="icon3d icon3d-lg" alt="">
+            <span data-i18n="modal_recordings_title">Aufnahmen & Wochenplaner</span>
+          </h5>
+          <span id="recStorageBadge" class="badge rounded-pill text-bg-secondary ms-3">0 MB</span>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body pt-0">
+          <ul class="nav nav-pills mb-3 gap-2" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="btn btn-glass btn-sm active" id="tabRecTimelineBtn" data-bs-toggle="pill" data-bs-target="#tabRecTimeline" type="button" role="tab" data-i18n="tab_rec_timeline">Aufnahmen & 0–24h Timeline</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="btn btn-glass btn-sm" id="tabRecScheduleBtn" data-bs-toggle="pill" data-bs-target="#tabRecSchedule" type="button" role="tab" data-i18n="tab_rec_schedule">Wochenplaner (Mo–So, 0–24h)</button>
+            </li>
+          </ul>
+
+          <div class="tab-content">
+            <!-- TAB 1: Recordings & 0-24h Timeline -->
+            <div class="tab-pane fade show active" id="tabRecTimeline" role="tabpanel">
+              <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <input type="date" id="recDateInput" class="form-control form-control-sm" style="width: auto;">
+                <select id="recCameraFilter" class="form-select form-select-sm" style="width: auto;">
+                  <option value="" data-i18n="rec_all_cameras">Alle Kameras</option>
+                </select>
+                <button type="button" class="btn btn-glass btn-sm" id="btnRefreshRecordings" data-i18n="btn_refresh">Aktualisieren</button>
+                <span id="recDaySummary" class="small text-secondary ms-auto"></span>
+              </div>
+
+              <!-- 0-24h Timeline Bar -->
+              <div class="p-3 rounded-3 mb-3" style="background: rgba(15, 23, 42, 0.45); border: 1px solid rgba(148,163,184,0.18);">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="small fw-semibold" data-i18n="rec_timeline_label">Tages-Timeline (00:00 – 24:00)</span>
+                  <div class="d-flex gap-3 small">
+                    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;"></span> <span data-i18n="rec_legend_unknown">Unbekannt</span></span>
+                    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#22c55e;"></span> <span data-i18n="rec_legend_known">Bekannt</span></span>
+                    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#38bdf8;"></span> <span data-i18n="rec_legend_cont">Daueraufnahme</span></span>
+                  </div>
+                </div>
+                <div id="recTimelineTrack" style="position:relative;height:36px;background:rgba(30,41,59,0.85);border-radius:8px;overflow:hidden;border:1px solid rgba(148,163,184,0.2);"></div>
+                <div class="d-flex justify-content-between text-secondary mt-1" style="font-size:0.72rem;">
+                  <span>00:00</span><span>04:00</span><span>08:00</span><span>12:00</span><span>16:00</span><span>20:00</span><span>24:00</span>
+                </div>
+              </div>
+
+              <div class="row g-3">
+                <div class="col-lg-7">
+                  <div class="rounded-3 overflow-hidden bg-black d-flex align-items-center justify-content-center" style="min-height:280px;">
+                    <video id="recVideoPlayer" controls playsinline style="width:100%;max-height:380px;display:none;"></video>
+                    <div id="recPlayerPlaceholder" class="text-secondary small p-4 text-center" data-i18n="rec_select_clip">Clip in der Timeline oder Liste auswählen</div>
+                  </div>
+                  <div id="recNowPlaying" class="small text-info mt-2"></div>
+                </div>
+                <div class="col-lg-5">
+                  <div id="recClipList" class="d-flex flex-column gap-2" style="max-height:380px;overflow-y:auto;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 2: 7x24h Weekly Scheduler -->
+            <div class="tab-pane fade" id="tabRecSchedule" role="tabpanel">
+              <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                  <span class="small fw-semibold" data-i18n="sched_brush">Pinsel:</span>
+                  <button type="button" class="btn btn-sm btn-outline-secondary sched-brush-btn" data-mode="off" data-i18n="sched_mode_off">Aus</button>
+                  <button type="button" class="btn btn-sm btn-outline-info sched-brush-btn active" data-mode="events" data-i18n="sched_mode_events">Nur Events</button>
+                  <button type="button" class="btn btn-sm btn-outline-warning sched-brush-btn" data-mode="continuous" data-i18n="sched_mode_cont">Daueraufnahme</button>
+                </div>
+                <div class="d-flex flex-wrap gap-1">
+                  <button type="button" class="btn btn-glass btn-sm sched-preset-btn" data-preset="default" data-i18n="sched_preset_default">06–23h Events</button>
+                  <button type="button" class="btn btn-glass btn-sm sched-preset-btn" data-preset="night" data-i18n="sched_preset_night">Nachts (22–06h)</button>
+                  <button type="button" class="btn btn-glass btn-sm sched-preset-btn" data-preset="workdays" data-i18n="sched_preset_workdays">Werktags (08–17h)</button>
+                  <button type="button" class="btn btn-glass btn-sm sched-preset-btn" data-preset="all_events" data-i18n="sched_preset_247">24/7 Events</button>
+                </div>
+              </div>
+
+              <div class="table-responsive mb-3">
+                <table class="table table-sm table-borderless align-middle mb-0" id="weeklyScheduleTable" style="user-select:none;">
+                  <thead>
+                    <tr class="text-secondary" style="font-size:0.72rem;" id="weeklyScheduleHeader"></tr>
+                  </thead>
+                  <tbody id="weeklyScheduleBody"></tbody>
+                </table>
+              </div>
+
+              <div class="row g-3 p-3 rounded-3" style="background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(148,163,184,0.18);">
+                <div class="col-md-3">
+                  <div class="form-check form-switch mt-2">
+                    <input class="form-check-input" type="checkbox" id="recEnabledInput" checked>
+                    <label class="form-check-label small fw-semibold" for="recEnabledInput" data-i18n="rec_enable_label">Videoaufzeichnung aktiv</label>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small mb-1" data-i18n="rec_trigger_label">Clips auslösen bei</label>
+                  <select id="recTriggerOnInput" class="form-select form-select-sm">
+                    <option value="all" data-i18n="rec_trigger_all">Alle erkannten Personen</option>
+                    <option value="unknown" data-i18n="rec_trigger_unknown">Nur unbekannte Personen</option>
+                  </select>
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small mb-1" data-i18n="rec_preroll_label">Vorlauf (Sek.)</label>
+                  <input type="number" id="recPreRollInput" class="form-control form-control-sm" min="0" max="20" value="5">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small mb-1" data-i18n="rec_postroll_label">Nachlauf (Sek.)</label>
+                  <input type="number" id="recPostRollInput" class="form-control form-control-sm" min="5" max="120" value="20">
+                </div>
+                <div class="col-md-1">
+                  <label class="form-label small mb-1" data-i18n="rec_days_label">Tage</label>
+                  <input type="number" id="recRetentionDaysInput" class="form-control form-control-sm" min="1" max="365" value="14">
+                </div>
+                <div class="col-md-1">
+                  <label class="form-label small mb-1" data-i18n="rec_maxgb_label">Max GB</label>
+                  <input type="number" id="recMaxGbInput" class="form-control form-control-sm" min="1" max="2000" value="100">
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-end mt-3">
+                <button type="button" class="btn btn-neo-primary px-4" id="btnSaveSchedule" data-i18n="btn_save_schedule">Zeitplan & Aufnahme speichern</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

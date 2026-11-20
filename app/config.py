@@ -42,6 +42,58 @@ DEFAULT_CAMERA: Dict[str, Any] = {
     },
 }
 
+WEEKLY_DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+VALID_SCHEDULE_MODES = ("off", "events", "continuous")
+
+
+def default_weekly_schedule(start_hour: int = 6, end_hour: int = 23) -> Dict[str, List[str]]:
+    """Build default 7x24h schedule matching legacy active hours."""
+    return {
+        day: ["events" if start_hour <= h < end_hour else "off" for h in range(24)]
+        for day in WEEKLY_DAYS
+    }
+
+
+def normalize_weekly_schedule(raw: Any) -> Dict[str, List[str]]:
+    """Normalize arbitrary schedule payload into strict 7x24h mode lists."""
+    base = default_weekly_schedule()
+    if not isinstance(raw, dict):
+        return base
+    for day in WEEKLY_DAYS:
+        slots = raw.get(day)
+        if isinstance(slots, list) and len(slots) == 24:
+            base[day] = [
+                s if s in VALID_SCHEDULE_MODES else "off"
+                for s in slots
+            ]
+    return base
+
+
+def get_schedule_mode(guard_cfg: Dict[str, Any], now: Optional[datetime] = None) -> str:
+    """Resolve current schedule mode ('off', 'events', 'continuous') for local time."""
+    if not guard_cfg.get("enabled", True):
+        return "off"
+    dt = now or datetime.now()
+    weekly = guard_cfg.get("weekly_schedule")
+    if isinstance(weekly, dict):
+        day_key = WEEKLY_DAYS[dt.weekday()]
+        slots = weekly.get(day_key)
+        if isinstance(slots, list) and len(slots) == 24:
+            mode = slots[dt.hour]
+            if mode in VALID_SCHEDULE_MODES:
+                return mode
+    # Legacy fallback
+    try:
+        sh, sm = [int(x) for x in str(guard_cfg.get("active_hours_start", "06:00")).split(":")]
+        eh, em = [int(x) for x in str(guard_cfg.get("active_hours_end", "23:00")).split(":")]
+        cur_m = dt.hour * 60 + dt.minute
+        start_m, end_m = sh * 60 + sm, eh * 60 + em
+        active = (start_m <= cur_m <= end_m) if start_m <= end_m else (cur_m >= start_m or cur_m <= end_m)
+        return "events" if active else "off"
+    except Exception:
+        return "events"
+
+
 DEFAULT_CONFIG: Dict[str, Any] = {
     "cameras": [json.loads(json.dumps(DEFAULT_CAMERA))],
     "guard": {
@@ -70,6 +122,15 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "tts_voice": "de_DE-thorsten-medium",
         "tts_volume": 100,
         "go2rtc_url": os.environ.get("GO2RTC_URL", "http://127.0.0.1:1984"),
+        "weekly_schedule": default_weekly_schedule(),
+        "recording": {
+            "enabled": True,
+            "trigger_on": "all",
+            "pre_roll_sec": 5,
+            "post_roll_sec": 20,
+            "retention_days": 14,
+            "max_storage_gb": 100,
+        },
     },
     "persons": [],
     "auth": {
@@ -87,18 +148,22 @@ class ConfigStore:
         self.data_dir = data_dir or DATA_DIR
         self.config_file = self.data_dir / "config.json"
         self.events_file = self.data_dir / "events.json"
+        self.recordings_file = self.data_dir / "recordings.json"
         self.faces_dir = self.data_dir / "faces"
         self.snapshots_dir = self.data_dir / "snapshots"
+        self.recordings_dir = self.data_dir / "recordings"
         self.models_dir = self.data_dir / "models"
         self._ensure_dirs()
         self._config = self._load_config()
         self._events = self._load_events()
+        self._recordings = self._load_recordings()
 
     def _ensure_dirs(self) -> None:
         for folder in (
             self.data_dir,
             self.faces_dir,
             self.snapshots_dir,
+            self.recordings_dir,
             self.models_dir,
             self.models_dir / "vision",
             self.models_dir / "tts",
@@ -543,3 +608,116 @@ class ConfigStore:
                     snap.unlink()
                 except OSError:
                     pass
+
+    # -------------------- Weekly Schedule & Recordings --------------------
+
+    def _load_recordings(self) -> List[Dict[str, Any]]:
+        if self.recordings_file.exists():
+            try:
+                with open(self.recordings_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, list):
+                    return data
+            except Exception:
+                pass
+        return []
+
+    def _save_recordings_unlocked(self) -> None:
+        with open(self.recordings_file, "w", encoding="utf-8") as f:
+            json.dump(self._recordings, f, indent=2, ensure_ascii=False)
+
+    def get_schedule(self) -> Dict[str, Any]:
+        with self._lock:
+            guard = self._config.get("guard", {})
+            rec_defaults = DEFAULT_CONFIG["guard"]["recording"]
+            rec = dict(rec_defaults)
+            rec.update(guard.get("recording") or {})
+            return {
+                "weekly_schedule": normalize_weekly_schedule(guard.get("weekly_schedule")),
+                "recording": rec,
+                "current_mode": get_schedule_mode(guard),
+            }
+
+    def update_schedule(
+        self,
+        weekly_schedule: Optional[Dict[str, Any]] = None,
+        recording: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        with self._lock:
+            guard = self._config.setdefault("guard", {})
+            if weekly_schedule is not None:
+                guard["weekly_schedule"] = normalize_weekly_schedule(weekly_schedule)
+            if recording is not None:
+                rec = dict(DEFAULT_CONFIG["guard"]["recording"])
+                rec.update(guard.get("recording") or {})
+                for k in ("enabled", "trigger_on", "pre_roll_sec", "post_roll_sec", "retention_days", "max_storage_gb"):
+                    if k in recording and recording[k] is not None:
+                        rec[k] = recording[k]
+                rec["pre_roll_sec"] = max(0, min(20, int(rec["pre_roll_sec"])))
+                rec["post_roll_sec"] = max(5, min(120, int(rec["post_roll_sec"])))
+                rec["retention_days"] = max(1, min(365, int(rec["retention_days"])))
+                rec["max_storage_gb"] = max(1, min(2000, int(rec["max_storage_gb"])))
+                if rec.get("trigger_on") not in ("all", "unknown"):
+                    rec["trigger_on"] = "all"
+                guard["recording"] = rec
+            self._save_config_unlocked(self._config)
+        return self.get_schedule()
+
+    def add_recording(self, entry: Dict[str, Any]) -> Dict[str, Any]:
+        with self._lock:
+            self._recordings.insert(0, entry)
+            self._save_recordings_unlocked()
+            return entry
+
+    def list_recordings(
+        self,
+        date_str: Optional[str] = None,
+        camera_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        with self._lock:
+            items = list(self._recordings)
+        if date_str:
+            items = [r for r in items if r.get("date") == date_str]
+        if camera_id:
+            items = [r for r in items if r.get("camera_id") == camera_id]
+        return items
+
+    def get_recording(self, rec_id: str) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            for r in self._recordings:
+                if r.get("id") == rec_id:
+                    return dict(r)
+        return None
+
+    def delete_recording(self, rec_id: str) -> bool:
+        with self._lock:
+            target = None
+            remaining = []
+            for r in self._recordings:
+                if r.get("id") == rec_id:
+                    target = r
+                else:
+                    remaining.append(r)
+            if target is None:
+                return False
+            self._recordings = remaining
+            self._save_recordings_unlocked()
+        rel_path = target.get("rel_path")
+        if rel_path:
+            fpath = self.recordings_dir / rel_path
+            if fpath.exists():
+                try:
+                    fpath.unlink()
+                except OSError:
+                    pass
+        return True
+
+    def get_recording_storage_stats(self) -> Dict[str, Any]:
+        with self._lock:
+            total_bytes = sum(int(r.get("size_bytes") or 0) for r in self._recordings)
+            count = len(self._recordings)
+        return {
+            "count": count,
+            "total_bytes": total_bytes,
+            "total_mb": round(total_bytes / (1024 * 1024), 1),
+        }
