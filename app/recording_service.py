@@ -70,6 +70,9 @@ class RecordingService:
         )
         if not rtsp_url or not (camera_cfg.get("rtsp_user") and camera_cfg.get("rtsp_pass")):
             target_mode = "off"
+        else:
+            # Prefer local go2rtc RTSP restream so camera only serves one Wi-Fi stream
+            rtsp_url = f"rtsp://127.0.0.1:8554/cam_{self._safe_cam_id(cam_id)}"
 
         with self._lock:
             cur = self._procs.get(cam_id)
@@ -80,7 +83,9 @@ class RecordingService:
 
             if cur and cur["mode"] == target_mode and cur["rtsp_url"] == rtsp_url:
                 if cur["proc"].poll() is None:
-                    if target_mode == "continuous":
+                    if target_mode == "events":
+                        self._prune_ring_dir(cam_id)
+                    elif target_mode == "continuous":
                         self._scan_continuous_files(camera_cfg)
                     return
                 # Process exited unexpectedly -> restart
@@ -112,12 +117,10 @@ class RecordingService:
                     "-f",
                     "segment",
                     "-segment_time",
-                    "5",
-                    "-segment_wrap",
-                    "6",
+                    "4",
                     "-reset_timestamps",
                     "1",
-                    str(ring_dir / "seg_%03d.ts"),
+                    str(ring_dir / "seg_%06d.ts"),
                 ]
             else:
                 today = datetime.now().strftime("%Y-%m-%d")
@@ -162,6 +165,17 @@ class RecordingService:
                 logger.info("Started %s ffmpeg recorder for %s.", target_mode, cam_id)
             except Exception as exc:
                 logger.warning("Failed to start ffmpeg recorder for %s: %s", cam_id, exc)
+
+    def _prune_ring_dir(self, cam_id: str, max_age_sec: float = 45.0) -> None:
+        ring_dir = self._get_ring_dir(cam_id)
+        cutoff = time.time() - max_age_sec
+        segs = sorted(ring_dir.glob("seg_*.ts"))
+        for seg in segs[:-2]:
+            try:
+                if seg.stat().st_mtime < cutoff:
+                    seg.unlink()
+            except OSError:
+                pass
 
     def _scan_continuous_files(self, camera_cfg: Dict[str, Any]) -> None:
         cam_id = str(camera_cfg.get("id") or "cam_1")
@@ -256,33 +270,37 @@ class RecordingService:
         trigger_ts = time.time()
 
         try:
-            # Copy pre-roll segments before ring buffer wraps over them
+            # Wait for post-roll, then collect each finalized segment ONCE in exact sequence order
             staging = ring_dir / f"job_{uuid.uuid4().hex[:8]}"
             staging.mkdir(parents=True, exist_ok=True)
-            copied_mtimes: Dict[str, float] = {}
+            copied_names: set[str] = set()
 
-            def snapshot_segments() -> None:
-                cutoff = trigger_ts - max(5, pre_roll + 5)
-                for seg in sorted(ring_dir.glob("seg_*.ts"), key=lambda p: p.stat().st_mtime):
+            def snapshot_finalized_segments(include_latest: bool = False) -> None:
+                cutoff = trigger_ts - max(4, pre_roll + 4)
+                segs = sorted(ring_dir.glob("seg_*.ts"))
+                candidates = segs if include_latest else segs[:-1]
+                for seg in candidates:
+                    if seg.name in copied_names:
+                        continue
                     try:
                         st = seg.stat()
                         if st.st_mtime < cutoff or st.st_size < 1024:
                             continue
-                        key = f"{int(st.st_mtime * 1000)}_{seg.name}"
-                        if key not in copied_mtimes:
-                            dst = staging / f"{len(copied_mtimes):04d}_{seg.name}"
-                            shutil.copy2(seg, dst)
-                            copied_mtimes[key] = st.st_mtime
+                        shutil.copy2(seg, staging / seg.name)
+                        copied_names.add(seg.name)
                     except OSError:
                         pass
 
-            snapshot_segments()
+            snapshot_finalized_segments(include_latest=False)
             deadline = time.time() + post_roll
             while time.time() < deadline:
                 time.sleep(2.0)
-                snapshot_segments()
+                snapshot_finalized_segments(include_latest=False)
+            # Wait briefly for the currently writing segment to finalize
+            time.sleep(1.5)
+            snapshot_finalized_segments(include_latest=False)
 
-            staged_files = sorted(staging.glob("*.ts"))
+            staged_files = sorted(staging.glob("seg_*.ts"))
             if not staged_files:
                 shutil.rmtree(staging, ignore_errors=True)
                 return
@@ -308,6 +326,8 @@ class RecordingService:
                     "-loglevel",
                     "error",
                     "-y",
+                    "-fflags",
+                    "+genpts",
                     "-f",
                     "concat",
                     "-safe",
