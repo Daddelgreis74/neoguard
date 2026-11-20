@@ -33,6 +33,7 @@ class TapoCameraService:
         self._last_fail_ts: float = 0.0
         self._last_cfg_sig: str = ""
         self._privacy_enabled: bool = False
+        self._go2rtc_url: str = os.environ.get("GO2RTC_URL", "http://127.0.0.1:1984").rstrip("/")
         self._reader_thread: Optional[threading.Thread] = None
         self._reader_stop = threading.Event()
         self._reader_cfg: Optional[Dict[str, Any]] = None
@@ -76,10 +77,14 @@ class TapoCameraService:
         """
         self._last_fail_ts = 0.0
         self._last_cfg_sig = self._cfg_signature(camera_cfg)
+        self._go2rtc_url = go2rtc_url.rstrip("/")
 
         host = (camera_cfg.get("host") or "").strip()
         rtsp_pass = camera_cfg.get("rtsp_pass") or ""
         cloud_pass = camera_cfg.get("cloud_password") or rtsp_pass
+        cam_id = re.sub(r"[^a-zA-Z0-9_-]", "_", str(camera_cfg.get("id") or "default"))
+        cam_stream_name = f"cam_{cam_id}"
+        rtsp_url = self.build_rtsp_url(camera_cfg, stream=camera_cfg.get("stream_quality", "stream1"))
 
         lines = [
             "api:",
@@ -102,15 +107,29 @@ class TapoCameraService:
         else:
             lines.append("  tapo_c200: []")
 
+        if rtsp_url:
+            lines.extend(
+                [
+                    f"  {cam_stream_name}:",
+                    f"    - {rtsp_url}",
+                ]
+            )
+
         self.go2rtc_config_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-        if host and tapo_url:
+        if host and (tapo_url or rtsp_url):
             try:
                 with httpx.Client(timeout=2.5) as client:
-                    client.put(
-                        f"{go2rtc_url.rstrip('/')}/api/streams",
-                        params={"name": "tapo_c200", "src": tapo_url},
-                    )
+                    if tapo_url:
+                        client.put(
+                            f"{self._go2rtc_url}/api/streams",
+                            params={"name": "tapo_c200", "src": tapo_url},
+                        )
+                    if rtsp_url:
+                        client.put(
+                            f"{self._go2rtc_url}/api/streams",
+                            params={"name": cam_stream_name, "src": rtsp_url},
+                        )
             except Exception:
                 pass
 
@@ -184,21 +203,41 @@ class TapoCameraService:
             if cap is not None:
                 cap.release()
 
+    def _fetch_go2rtc_frame(self, camera_cfg: Dict[str, Any]) -> Optional[np.ndarray]:
+        """Fetch an on-demand JPEG snapshot from local go2rtc to avoid 24/7 FFmpeg CPU decoding."""
+        cam_id = re.sub(r"[^a-zA-Z0-9_-]", "_", str(camera_cfg.get("id") or "default"))
+        stream_candidates = [f"cam_{cam_id}"]
+        if camera_cfg.get("host") and (camera_cfg.get("cloud_password") or camera_cfg.get("rtsp_pass")):
+            stream_candidates.append("tapo_c200")
+        for stream_name in stream_candidates:
+            try:
+                with httpx.Client(timeout=2.5) as client:
+                    resp = client.get(
+                        f"{self._go2rtc_url}/api/frame.jpeg",
+                        params={"src": stream_name},
+                    )
+                    if resp.status_code == 200 and resp.content:
+                        arr = np.frombuffer(resp.content, dtype=np.uint8)
+                        frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                        if frame is not None and frame.size > 0:
+                            return frame
+            except Exception as exc:
+                logger.debug("go2rtc snapshot failed for %s: %s", stream_name, exc)
+        return None
+
     def capture_frame(
         self,
         camera_cfg: Dict[str, Any],
         stream: Optional[str] = None,
         ignore_backoff: bool = False,
     ) -> Optional[np.ndarray]:
-        """Return latest frame from persistent RTSP reader or capture one-shot frame."""
+        """Return recent cached frame, on-demand go2rtc snapshot, or one-shot RTSP frame."""
         if self._privacy_enabled or not camera_cfg.get("enabled", True):
             self.stop_reader()
             return None
 
-        self._ensure_reader_running(camera_cfg)
-
         with self._frame_lock:
-            if self._last_frame is not None and (time.time() - self._last_frame_ts) < 2.0:
+            if self._last_frame is not None and (time.time() - self._last_frame_ts) < 0.25:
                 return self._last_frame.copy()
 
         sig = self._cfg_signature(camera_cfg)
@@ -208,6 +247,15 @@ class TapoCameraService:
 
         if not ignore_backoff and self._last_fail_ts > 0 and (time.time() - self._last_fail_ts) < 30.0:
             return None
+
+        if not stream:
+            frame = self._fetch_go2rtc_frame(camera_cfg)
+            if frame is not None:
+                with self._frame_lock:
+                    self._last_frame = frame.copy()
+                    self._last_frame_ts = time.time()
+                    self._last_fail_ts = 0.0
+                return frame
 
         rtsp_url = self.build_rtsp_url(camera_cfg, stream=stream)
         if not rtsp_url or not (camera_cfg.get("rtsp_user") and camera_cfg.get("rtsp_pass")):
@@ -232,15 +280,13 @@ class TapoCameraService:
         return None
 
     def get_snapshot_or_placeholder(self, camera_cfg: Dict[str, Any]) -> np.ndarray:
-        """Return recent cached frame, fresh RTSP frame, or an informative status placeholder image."""
+        """Return on-demand camera frame or an informative status placeholder image."""
         if not camera_cfg.get("enabled", True):
             self.stop_reader()
             return self.render_placeholder_frame(camera_cfg)
-        self._ensure_reader_running(camera_cfg)
-        with self._frame_lock:
-            if self._last_frame is not None and (time.time() - self._last_frame_ts) < 2.5:
-                return self._last_frame.copy()
-
+        frame = self.capture_frame(camera_cfg)
+        if frame is not None:
+            return frame
         return self.render_placeholder_frame(camera_cfg)
 
     def render_placeholder_frame(self, camera_cfg: Dict[str, Any]) -> np.ndarray:

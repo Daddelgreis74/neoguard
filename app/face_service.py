@@ -21,14 +21,16 @@ YOLOV8N_URL = "https://huggingface.co/Kalray/yolov8/resolve/main/yolov8n.onnx"
 
 
 class LocalFaceService:
-    """100% Local AI Person (YOLOv8n) + Face Detection & Recognition (YuNet + SFace ONNX)."""
+    """100% Local AI Person (YOLO26n/YOLOv8n) + Face Detection & Recognition (YuNet + SFace ONNX)."""
 
     def __init__(self, models_dir: Path) -> None:
         self.vision_dir = models_dir / "vision"
         self.vision_dir.mkdir(parents=True, exist_ok=True)
         self.yunet_path = self.vision_dir / "face_detection_yunet_2023mar.onnx"
         self.sface_path = self.vision_dir / "face_recognition_sface_2021dec.onnx"
+        self.yolo26_path = self.vision_dir / "yolo26n.onnx"
         self.yolo_path = self.vision_dir / "yolov8n.onnx"
+        self._yolo_model_name = "yolo26n"
         self._detector = None
         self._recognizer = None
         self._yolo_session = None
@@ -48,27 +50,29 @@ class LocalFaceService:
             if not self.sface_path.exists():
                 logger.info("Downloading SFace ONNX face recognizer (~37 MB)...")
                 urllib.request.urlretrieve(SFACE_URL, str(self.sface_path))
-            if not self.yolo_path.exists():
-                logger.info("Downloading YOLOv8n ONNX person detector (~13 MB)...")
+            if not self.yolo26_path.exists() and not self.yolo_path.exists():
+                logger.info("Downloading YOLOv8n ONNX fallback person detector (~13 MB)...")
                 urllib.request.urlretrieve(YOLOV8N_URL, str(self.yolo_path))
             self._init_engines()
-            return self.engine_name == "yunet+sface-onnx"
+            return "yunet+sface-onnx" in self.engine_name
         except Exception as exc:
             logger.warning("Could not download ONNX models (%s), using fallback engine.", exc)
             return False
 
     def _init_engines(self) -> None:
-        if self.yolo_path.exists():
+        active_yolo = self.yolo26_path if self.yolo26_path.exists() else self.yolo_path
+        self._yolo_model_name = "yolo26n" if active_yolo == self.yolo26_path else "yolov8n"
+        if active_yolo.exists():
             try:
                 import onnxruntime as ort
 
                 self._yolo_session = ort.InferenceSession(
-                    str(self.yolo_path), providers=["CPUExecutionProvider"]
+                    str(active_yolo), providers=["CPUExecutionProvider"]
                 )
                 self._yolo_input_name = self._yolo_session.get_inputs()[0].name
-                logger.info("Initialized local YOLOv8n ONNX person detector.")
+                logger.info("Initialized local %s ONNX person detector.", self._yolo_model_name)
             except Exception as exc:
-                logger.warning("Failed to initialize YOLOv8n ONNX: %s", exc)
+                logger.warning("Failed to initialize %s ONNX: %s", self._yolo_model_name, exc)
 
         if self.yunet_path.exists() and self.sface_path.exists():
             try:
@@ -84,7 +88,7 @@ class LocalFaceService:
                     str(self.sface_path), ""
                 )
                 self.engine_name = (
-                    "yolov8n+yunet+sface-onnx"
+                    f"{self._yolo_model_name}+yunet+sface-onnx"
                     if self._yolo_session is not None
                     else "yunet+sface-onnx"
                 )
@@ -365,8 +369,33 @@ class LocalFaceService:
         with self._yolo_lock:
             outputs = self._yolo_session.run(None, {self._yolo_input_name: blob})
 
-        # Output shape: (1, 84, 8400) -> transpose to (8400, 84)
-        preds = np.squeeze(outputs[0]).T
+        raw_out = np.squeeze(outputs[0])
+        results: List[Dict[str, Any]] = []
+
+        # YOLO26n NMS-free end-to-end output: (N, 6) -> [x1, y1, x2, y2, score, class_id]
+        if raw_out.ndim == 2 and raw_out.shape[1] == 6:
+            mask = (raw_out[:, 4] >= conf_threshold) & (np.round(raw_out[:, 5]).astype(int) == 0)
+            for row in raw_out[mask]:
+                rx1, ry1, rx2, ry2, sc = float(row[0]), float(row[1]), float(row[2]), float(row[3]), float(row[4])
+                ox1 = (rx1 - pad_x) / scale
+                oy1 = (ry1 - pad_y) / scale
+                ox2 = (rx2 - pad_x) / scale
+                oy2 = (ry2 - pad_y) / scale
+                x1_c = max(0, min(iw - 1, int(ox1)))
+                y1_c = max(0, min(ih - 1, int(oy1)))
+                x2_c = max(x1_c + 1, min(iw, int(ox2)))
+                y2_c = max(y1_c + 1, min(ih, int(oy2)))
+                results.append(
+                    {
+                        "bbox": [x1_c, y1_c, max(1, x2_c - x1_c), max(1, y2_c - y1_c)],
+                        "score": round(sc, 3),
+                    }
+                )
+            results.sort(key=lambda r: r["bbox"][2] * r["bbox"][3], reverse=True)
+            return results
+
+        # YOLOv8n output shape: (1, 84, 8400) -> transpose to (8400, 84)
+        preds = raw_out.T
         person_scores = preds[:, 4]  # class 0 = person
         mask = person_scores >= conf_threshold
         filtered = preds[mask]
