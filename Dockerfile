@@ -5,8 +5,9 @@ RUN CGO_ENABLED=0 go build -trimpath -o /tapoctl .
 
 FROM python:3.12-slim AS yolo-export
 WORKDIR /export
-RUN pip install --no-cache-dir ultralytics onnx onnxslim && \
-    python3 -c "from ultralytics import YOLO; YOLO('yolo26n.pt').export(format='onnx', imgsz=640)"
+RUN apt-get update && apt-get install -y --no-install-recommends libglib2.0-0 libxcb1 libgl1 && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir ultralytics onnx onnxslim
+RUN python3 -c "from ultralytics import YOLO; YOLO('yolo26n.pt').export(format='onnx', imgsz=640)"
 
 FROM python:3.12-slim
 
