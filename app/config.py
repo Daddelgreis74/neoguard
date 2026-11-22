@@ -35,6 +35,7 @@ DEFAULT_CAMERA: Dict[str, Any] = {
     "tracking_speed": 1.4,
     "tracking_return_home": True,
     "tracking_home_delay_sec": 20,
+    "ignore_zones": [],
     "preset_names": {
         "1": "Tür / Eingang",
         "2": "Raum-Mitte",

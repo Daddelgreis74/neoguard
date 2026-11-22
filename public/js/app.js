@@ -207,6 +207,7 @@
     const speedVal = cam.tracking_speed ?? 1.4;
     const slider = document.getElementById("trackingSpeedSlider");
     const speedBadge = document.getElementById("trackingSpeedVal");
+    if (typeof loadIgnoreZonesForCamera === "function") loadIgnoreZonesForCamera(cam);
     if (slider) slider.value = speedVal;
     if (speedBadge) speedBadge.textContent = `${Number(speedVal).toFixed(1)}x`;
 
@@ -1101,6 +1102,7 @@
       auto_tracking: document.getElementById("cfgAutoTracking").checked,
       tracking_return_home: document.getElementById("cfgTrackingReturnHome").checked,
       tracking_speed: parseFloat(document.getElementById("trackingSpeedSlider")?.value || "1.4"),
+      ignore_zones: currentIgnoreZones,
       preset_names: {
         "1": document.getElementById("cfgPresetName1")?.value.trim() || "Tür / Eingang",
         "2": document.getElementById("cfgPresetName2")?.value.trim() || "Raum-Mitte",
@@ -1259,6 +1261,99 @@
         loadEvents();
       }
     });
+  });
+
+  // -------------------- Ignore Zones (Coat Rack / Static False Positives) --------------------
+  let currentIgnoreZones = [];
+  let izDragging = false;
+  let izStart = null;
+  let izPreview = null;
+
+  const drawIgnoreZones = () => {
+    const canvas = document.getElementById("ignoreZoneCanvas");
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      canvas.width = Math.round(rect.width);
+      canvas.height = Math.round(rect.height);
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const drawBox = (z, isDraft = false) => {
+      const x1 = Math.min(z[0], z[2]) * canvas.width;
+      const y1 = Math.min(z[1], z[3]) * canvas.height;
+      const w = Math.abs(z[2] - z[0]) * canvas.width;
+      const h = Math.abs(z[3] - z[1]) * canvas.height;
+      ctx.fillStyle = isDraft ? "rgba(239, 68, 68, 0.28)" : "rgba(239, 68, 68, 0.22)";
+      ctx.strokeStyle = "#ef4444";
+      ctx.lineWidth = 2;
+      ctx.fillRect(x1, y1, w, h);
+      ctx.strokeRect(x1, y1, w, h);
+    };
+
+    currentIgnoreZones.forEach((z) => drawBox(z, false));
+    if (izPreview) drawBox(izPreview, true);
+
+    const countEl = document.getElementById("ignoreZoneCount");
+    if (countEl) countEl.textContent = `${currentIgnoreZones.length} Zone(n)`;
+  };
+
+  function loadIgnoreZonesForCamera(cam) {
+    currentIgnoreZones = Array.isArray(cam?.ignore_zones) ? cam.ignore_zones.map((z) => [...z]) : [];
+    const img = document.getElementById("ignoreZoneImg");
+    if (img && cam?.id) {
+      img.src = `/api/cameras/${encodeURIComponent(cam.id)}/snapshot.jpg?t=${Date.now()}`;
+      img.onload = drawIgnoreZones;
+    }
+    setTimeout(drawIgnoreZones, 120);
+  }
+
+  document.getElementById("btnLoadIgnoreSnap")?.addEventListener("click", () => {
+    loadIgnoreZonesForCamera(getSettingsCamera());
+  });
+  document.getElementById("btnClearIgnoreZones")?.addEventListener("click", () => {
+    currentIgnoreZones = [];
+    drawIgnoreZones();
+  });
+
+  const izCanvas = document.getElementById("ignoreZoneCanvas");
+  const getNormPt = (e) => {
+    const r = izCanvas.getBoundingClientRect();
+    return [
+      Math.max(0, Math.min(1, (e.clientX - r.left) / Math.max(1, r.width))),
+      Math.max(0, Math.min(1, (e.clientY - r.top) / Math.max(1, r.height))),
+    ];
+  };
+  izCanvas?.addEventListener("mousedown", (e) => {
+    izDragging = true;
+    izStart = getNormPt(e);
+    izPreview = [izStart[0], izStart[1], izStart[0], izStart[1]];
+    drawIgnoreZones();
+  });
+  izCanvas?.addEventListener("mousemove", (e) => {
+    if (!izDragging || !izStart) return;
+    const p = getNormPt(e);
+    izPreview = [izStart[0], izStart[1], p[0], p[1]];
+    drawIgnoreZones();
+  });
+  window.addEventListener("mouseup", () => {
+    if (!izDragging || !izPreview) return;
+    izDragging = false;
+    const w = Math.abs(izPreview[2] - izPreview[0]);
+    const h = Math.abs(izPreview[3] - izPreview[1]);
+    if (w > 0.03 && h > 0.03) {
+      currentIgnoreZones.push([
+        Number(Math.min(izPreview[0], izPreview[2]).toFixed(4)),
+        Number(Math.min(izPreview[1], izPreview[3]).toFixed(4)),
+        Number(Math.max(izPreview[0], izPreview[2]).toFixed(4)),
+        Number(Math.max(izPreview[1], izPreview[3]).toFixed(4)),
+      ]);
+    }
+    izPreview = null;
+    izStart = null;
+    drawIgnoreZones();
   });
 
   // -------------------- Recordings & 7x24h Weekly Scheduler --------------------

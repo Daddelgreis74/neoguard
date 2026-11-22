@@ -135,3 +135,17 @@ def test_recordings_api_and_retention(client: TestClient):
     del_res = client.delete("/api/recordings/rec_new")
     assert del_res.status_code == 200
     assert not mp4_new.exists()
+
+
+def test_ignore_zones_logic_and_api(client: TestClient):
+    from app.guard_worker import RoomGuardWorker
+
+    zones = [[0.0, 0.2, 0.35, 0.9]]
+    # Box centered at (150, 500) in 1000x1000 -> (0.15, 0.50) -> inside zone
+    assert RoomGuardWorker._is_in_ignore_zone([100, 400, 100, 200], (1000, 1000, 3), zones) is True
+    # Box centered at (650, 500) in 1000x1000 -> (0.65, 0.50) -> outside zone
+    assert RoomGuardWorker._is_in_ignore_zone([600, 400, 100, 200], (1000, 1000, 3), zones) is False
+
+    res = client.put("/api/cameras/cam_1", json={"ignore_zones": zones})
+    assert res.status_code == 200
+    assert res.json()["camera"]["ignore_zones"] == zones

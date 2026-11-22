@@ -587,7 +587,7 @@ class TapoCameraService:
         """
         speed_mult = max(0.3, min(5.0, float(speed_multiplier or 1.4)))
         now = time.time()
-        min_cooldown = max(0.06, 0.28 / speed_mult)
+        min_cooldown = max(0.18, 0.35 / speed_mult)
         if (now - self._last_track_ts) < min_cooldown:
             return False
 
@@ -603,13 +603,13 @@ class TapoCameraService:
         err_x = (face_cx - (w / 2.0)) / float(w)
         err_y = (face_cy - (h / 2.0)) / float(h)
 
-        # Deadzone ±9% horizontally, ±12% vertically
+        # Smooth proportional control with calm deadzone (±12% horizontally, ±15% vertically)
         vx = 0.0
         vy = 0.0
-        if abs(err_x) > 0.09:
-            vx = max(-1.0, min(1.0, err_x * 2.2 * speed_mult))
-        if abs(err_y) > 0.12:
-            vy = max(-1.0, min(1.0, -err_y * 1.6 * speed_mult))
+        if abs(err_x) > 0.12:
+            vx = max(-0.65, min(0.65, err_x * 1.15 * speed_mult))
+        if abs(err_y) > 0.15:
+            vy = max(-0.55, min(0.55, -err_y * 0.90 * speed_mult))
 
         if vx == 0.0 and vy == 0.0:
             return False
@@ -628,7 +628,7 @@ class TapoCameraService:
 </tptz:ContinuousMove>""",
             )
             if resp.status_code == 200 and "Fault" not in resp.text:
-                pulse_sec = min(0.55, max(0.10, max(abs(err_x), abs(err_y)) * 0.65 * min(speed_mult, 3.0)))
+                pulse_sec = min(0.28, max(0.08, max(abs(err_x), abs(err_y)) * 0.45 * min(speed_mult, 2.0)))
                 time.sleep(pulse_sec)
                 self.stop_ptz(camera_cfg)
                 return True

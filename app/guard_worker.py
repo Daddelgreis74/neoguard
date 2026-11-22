@@ -99,6 +99,24 @@ class RoomGuardWorker:
         except Exception:
             return True
 
+    @staticmethod
+    def _is_in_ignore_zone(bbox: List[int], frame_shape: tuple, ignore_zones: List[List[float]]) -> bool:
+        if not ignore_zones or len(bbox) < 4:
+            return False
+        h, w = frame_shape[:2]
+        if h <= 0 or w <= 0:
+            return False
+        bx, by, bw, bh = bbox[:4]
+        cx = (bx + bw / 2.0) / float(w)
+        cy = (by + bh / 2.0) / float(h)
+        for z in ignore_zones:
+            if not isinstance(z, (list, tuple)) or len(z) < 4:
+                continue
+            x1, y1, x2, y2 = min(z[0], z[2]), min(z[1], z[3]), max(z[0], z[2]), max(z[1], z[3])
+            if x1 <= cx <= x2 and y1 <= cy <= y2:
+                return True
+        return False
+
     def analyze_and_greet_frame(
         self,
         frame_bgr: np.ndarray,
@@ -122,8 +140,14 @@ class RoomGuardWorker:
         auto_track = bool(camera_cfg.get("auto_tracking", guard_cfg.get("auto_tracking", True)))
         track_speed = float(camera_cfg.get("tracking_speed", guard_cfg.get("tracking_speed", 1.4)))
 
-        # Stage 1: Neural Person Detection via local YOLOv8n ONNX
+        # Stage 1: Neural Person Detection via local YOLO26n/YOLOv8n ONNX
+        ignore_zones = camera_cfg.get("ignore_zones") or []
         yolo_people = self.face.detect_people_yolo(frame_bgr, conf_threshold=0.45)
+        if yolo_people is not None and ignore_zones:
+            yolo_people = [
+                p for p in yolo_people
+                if not self._is_in_ignore_zone(p["bbox"], frame_bgr.shape, ignore_zones)
+            ]
         detections: List[Dict[str, Any]] = []
         body_bbox: Optional[List[int]] = None
 
