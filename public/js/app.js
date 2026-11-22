@@ -1304,7 +1304,7 @@
     currentIgnoreZones = Array.isArray(cam?.ignore_zones) ? cam.ignore_zones.map((z) => [...z]) : [];
     const img = document.getElementById("ignoreZoneImg");
     if (img && cam?.id) {
-      img.src = `/api/cameras/${encodeURIComponent(cam.id)}/snapshot.jpg?t=${Date.now()}`;
+      img.src = `/api/camera/snapshot.jpg?camera_id=${encodeURIComponent(cam.id)}&t=${Date.now()}`;
       img.onload = drawIgnoreZones;
     }
     setTimeout(drawIgnoreZones, 120);
