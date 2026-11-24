@@ -6,7 +6,7 @@
 
 **100% Local Multi-Camera AI Security, Person Tracking, Face Recognition & 48-Hour Unknown Event Logging for RTSP / ONVIF IP Cameras.**
 
-No cloud subscriptions, no external AI APIs: all video analysis (**YOLOv8n** person detection + **OpenCV YuNet** face detection + **SFace ONNX** 128-D embeddings) runs completely offline inside the Docker container.
+No cloud subscriptions, no external AI APIs: all video analysis (**YOLO26n ONNX** person detection + **OpenCV YuNet** face detection + **SFace ONNX** 128-D embeddings) runs completely offline inside the Docker container, using on-demand `go2rtc` snapshots for low CPU usage.
 
 ---
 
@@ -26,19 +26,26 @@ No cloud subscriptions, no external AI APIs: all video analysis (**YOLOv8n** per
 | **Thingino** (Open-Source Firmware) | `554` | `80` | `ch0` | `Profile_0` |
 | **Custom (RTSP / ONVIF)** | Custom | Custom | Custom path or full `rtsp://...` URL | Custom |
 
-### 2. Local AI Face Recognition & 48h Unknown Event Log
+### 2. Local AI Face Recognition, Ignore Zones & 48h Unknown Event Log
 - **Known Persons = OK:** Recognized household members only update their `last_seen` timestamp without spamming event logs or snapshots.
+- **Interactive Detection Ignore Zones:** Draw mask rectangles directly on a camera snapshot to exclude static false-positives (e.g., coat racks, curtains, or reflections) from person detection and auto-tracking.
 - **48-Hour Unknown Person Retention:** Unrecognized persons are logged with camera name badges and annotated snapshots, and automatically pruned after **48 hours** (`event_retention_hours: 48`).
 - **In-Browser Crop & Enrollment:** Upload reference photos or capture directly from any camera with interactive crop/zoom/rotate editing.
 - **Collapsible Persons Drawer:** Space-saving avatar preview bar with smooth expand/collapse drawer.
 
-### 3. Live View, Digital Zoom & ONVIF PTZ Auto-Tracking
+### 3. Video Recording, 7×24h Weekly Planner & 0–24h Timeline
+- **CPU-Light RTSP Stream-Copy Recording:** Records directly from the local `go2rtc` restream via `ffmpeg` without re-encoding, supporting **Event Clips** (with pre-/post-roll RAM ring buffer) and **Continuous Recording**.
+- **7×24h Weekly Schedule:** Per-hour weekly grid (`Off` / `Events` / `Continuous`) per camera.
+- **0–24h Visual Timeline & Retention:** Browse, play, and download `.mp4` recordings by day with automatic cleanup by retention days and max storage GB.
+
+### 4. Live View, Digital Zoom & Smooth ONVIF PTZ Auto-Tracking
 - **Live MJPEG Stream & Digital Zoom (`1.0x – 4.0x`):** Smooth zoom via slider, mouse wheel, and drag-to-pan.
 - **Hold-to-Move ONVIF PTZ & Presets 1–3:** Continuous pan/tilt control, center stream-refresh button, hardware preset saving (`💾`), and editable preset names per camera.
-- **Configurable Auto-Tracking (`0.3x – 5.0x`):** Follows detected persons smoothly and returns to Preset 1 after inactivity.
-- **TP-Link Tapo TPAP Hardware Controls:** Integrated siren, status LED, night vision (`Auto / On / Off`), and privacy mode support.
+- **Smooth Proportional Auto-Tracking (`0.3x – 5.0x`):** Follows detected persons smoothly using continuous ONVIF movement and returns to Preset 1 after inactivity.
+- **TP-Link Tapo TPAP Hardware Controls:** Integrated status LED, night vision (`Auto / On / Off`), and privacy mode support.
 
-### 4. Neo Deck Aurora UI & Security
+### 5. Neo Deck Aurora UI, Multilingual Support & Security
+- **Multilingual UI (`DE`, `EN`, `FR`, `ES`)** with automatic browser language detection and live language switcher.
 - **Dark & Light Mode** with custom transparent **3D icon set** (`public/icons3d/`).
 - **Organized 3-Tab Settings Modal:** `Cameras`, `AI & Detection`, and `Login`.
 - **Session Protection:** PBKDF2-SHA256 authentication with signed `HttpOnly` session cookies (`neoguard_session`, default credentials `admin` / `tapo1234` — changeable in Settings or via `AUTH_USER` / `AUTH_PASS`).
